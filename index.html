@@ -173,20 +173,25 @@ const firebaseConfig = {
 
         // --- DATA LISTENERS ---
         function startListeners() {
-            if (!auth.currentUser) return;
+    if (!auth.currentUser) return;
 
-            // Using Helper for Rule 1 Compliance
-            unsubStock = getStockCollection().onSnapshot(snap => {
-                stockData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
-                if (currentTab === 'stock' || currentTab === 'request') renderTab();
-            }, err => console.error("Stock Sync Error:", err));
+    // Listener สำหรับข้อมูลสินค้า
+    unsubStock = getStockCollection().onSnapshot(snap => {
+        stockData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
+        if (currentTab === 'stock' || currentTab === 'request') renderTab();
+        
+        updateCloudUsage(); // <--- เพิ่มตรงนี้
+    }, err => console.error("Stock Sync Error:", err));
 
-            unsubRequests = getRequestsCollection().onSnapshot(snap => {
-                requestsData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}))
-                    .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
-                if (currentTab === 'status' || currentTab === 'approve') renderTab();
-            }, err => console.error("Requests Sync Error:", err));
-        }
+    // Listener สำหรับรายการเบิก
+    unsubRequests = getRequestsCollection().onSnapshot(snap => {
+        requestsData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}))
+            .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        if (currentTab === 'status' || currentTab === 'approve') renderTab();
+        
+        updateCloudUsage(); // <--- เพิ่มตรงนี้
+    }, err => console.error("Requests Sync Error:", err));
+}
 
         function showTab(tab) {
             currentTab = tab;
@@ -490,32 +495,97 @@ const firebaseConfig = {
             return 'รออนุมัติ';
         }
 // ฟังก์ชันสำหรับอัปเดตข้อมูลทีละฟิลด์
-async function updateRequestField(reqId, field, value) {
-    if (currentUser.role !== 'approver') return;
-    try {
-        let finalValue = value;
-        if (field === 'quantity') finalValue = parseInt(value);
-        
-        await getRequestsCollection().doc(reqId).update({
-            [field]: finalValue,
-            updatedBy: currentUser.name,
-            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
-        });
-    } catch (err) {
-        alert('อัปเดตข้อมูลไม่สำเร็จ: ' + err.message);
-    }
+// 1. ฟังก์ชันแสดง Pop-up ยืนยันรายละเอียด
+function showConfirmAction(title, detail, onConfirm) {
+    const isConfirmed = confirm(`⚠️ ยืนยันการดำเนินการ: ${title}\n\n📝 รายละเอียด:\n${detail}\n\nกด "ตกลง" เพื่อยืนยัน หรือ "ยกเลิก" เพื่อกลับไปแก้ไข`);
+    if (isConfirmed) onConfirm();
 }
 
-// ฟังก์ชันสำหรับลบรายการเบิก
-async function deleteRequestRecord(reqId) {
+// 2. ฟังก์ชันอัปเดตข้อมูลพร้อมระบบ Pop-up และคำนวณสต็อก
+async function updateRequestField(reqId, field, value) {
     if (currentUser.role !== 'approver') return;
-    if (!confirm('ยืนยันการลบรายการเบิกนี้? ข้อมูลจะหายไปจากระบบทันที')) return;
 
     try {
-        await getRequestsCollection().doc(reqId).delete();
+        const reqRef = getRequestsCollection().doc(reqId);
+        const snap = await reqRef.get();
+        const oldData = snap.data();
+        
+        // เตรียมรายละเอียดสำหรับแสดงใน Pop-up
+        const newValue = field === 'quantity' ? parseInt(value) : value;
+        const detail = `รายการ: ${oldData.productName}\nแก้ไข [${field}] จาก "${oldData[field]}" เป็น "${newValue}"`;
+
+        // เรียกใช้ Pop-up ก่อนดำเนินการ
+        showConfirmAction("แก้ไขข้อมูลการเบิก", detail, async () => {
+            try {
+                // กรณีแก้ไขจำนวน (quantity) และรายการนั้นถูก "อนุมัติแล้ว" ต้องไปปรับสต็อกสินค้าคืนหรือหักออก
+                if (field === 'quantity' && oldData.status === 'approved') {
+                    const diff = oldData.quantity - newValue; // ถ้าของเดิมมากกว่าของใหม่ = คืนสต็อก (ค่าเป็นบวก)
+                    const stockItem = stockData.find(s => s.productName === oldData.productName);
+                    
+                    if (stockItem) {
+                        const stockRef = getStockCollection().doc(stockItem.id);
+                        await stockRef.update({
+                            currentStock: stockItem.currentStock + diff,
+                            withdrawalCount: (stockItem.withdrawalCount || 0) - diff
+                        });
+                    }
+                }
+
+                // อัปเดตข้อมูลลงในรายการเบิก (Requests Collection)
+                await reqRef.update({
+                    [field]: newValue,
+                    updatedBy: currentUser.name,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                console.log("อัปเดตข้อมูลสำเร็จ");
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดขณะอัปเดต: ' + err.message);
+            }
+        });
+
     } catch (err) {
-        alert('ลบข้อมูลไม่สำเร็จ: ' + err.message);
+        alert('ไม่สามารถดึงข้อมูลเพื่อแก้ไขได้: ' + err.message);
     }
+}
+function updateCloudUsage() {
+    // คำนวณจำนวนแถวทั้งหมดจากข้อมูลที่มีในระบบ (Requests + Stock)
+    const totalLines = requestsData.length + stockData.length;
+    const limit = 100000; // ขีดจำกัด 100,000 แถวตามที่คุณต้องการ
+    const usagePercent = Math.min((totalLines / limit) * 100, 100);
+    
+    // กำหนดสีตามระดับความหนาแน่นของข้อมูล
+    const colorClass = usagePercent > 80 ? 'bg-red-500' : 'bg-blue-500';
+    const textColorClass = usagePercent > 80 ? 'text-red-400' : 'text-blue-400';
+
+    const usageHTML = `
+        <div class="mt-4 p-3 bg-slate-800 rounded-lg shadow-inner border border-slate-700">
+            <div class="flex justify-between text-[10px] mb-1.5">
+                <span class="text-slate-400 font-bold tracking-tight">CLOUD STORAGE</span>
+                <span class="${textColorClass} font-bold">${usagePercent.toFixed(2)}%</span>
+            </div>
+            <div class="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div class="${colorClass} h-full transition-all duration-700 ease-out" 
+                     style="width: ${usagePercent}%"></div>
+            </div>
+            <div class="flex justify-between items-center mt-2">
+                <p class="text-[9px] text-slate-500">${totalLines.toLocaleString()} / ${limit.toLocaleString()} rows</p>
+                ${usagePercent > 90 ? '<i class="fas fa-exclamation-triangle text-red-500 text-[10px] animate-pulse"></i>' : ''}
+            </div>
+        </div>
+    `;
+    
+    // ค้นหา Sidebar Container (id="nav-menu") เพื่อแทรกแถบแจ้งเตือน
+    const nav = document.getElementById('nav-menu');
+    let usageBox = document.getElementById('cloud-usage-box');
+    
+    if (!usageBox) {
+        usageBox = document.createElement('div');
+        usageBox.id = 'cloud-usage-box';
+        usageBox.className = "px-1"; // เพิ่ม padding เล็กน้อยให้เข้ากับปุ่มเมนู
+        nav.appendChild(usageBox);
+    }
+    usageBox.innerHTML = usageHTML;
 }
     </script>
 </body>
