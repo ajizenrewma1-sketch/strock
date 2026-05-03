@@ -245,16 +245,40 @@ const firebaseConfig = {
                 container.innerHTML = `
                     <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
                         <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                            // ส่วนหัวตาราง (Thead)
+<thead class="bg-slate-50 text-slate-500 text-xs uppercase">
     <tr>
         <th class="px-6 py-4">วันที่</th>
         <th class="px-6 py-4">สินค้า</th>
         <th class="px-6 py-4">จำนวน</th>
         <th class="px-6 py-4">ผู้เบิก/ไรเดอร์</th>
         <th class="px-6 py-4">สถานะ</th>
+        <!-- ตรวจสอบว่ามีบรรทัดนี้ไหม -->
         ${currentUser.role === 'approver' ? '<th class="px-6 py-4 text-center">จัดการ</th>' : ''}
     </tr>
 </thead>
+
+// ส่วนเนื้อหาตาราง (Tbody)
+<tbody class="divide-y divide-slate-100">
+    ${requestsData.map(r => {
+        const isApprover = currentUser.role === 'approver';
+        // ... (โค้ดส่วนอื่นๆ)
+        return `
+            <tr>
+                <!-- ... (คอลัมน์ข้อมูลอื่นๆ) ... -->
+                <td class="px-6 py-4 text-sm">${statusDisplay}</td>
+                
+                <!-- ตรวจสอบปุ่มลบตรงนี้ -->
+                ${isApprover ? `
+                    <td class="px-6 py-4 text-center">
+                        <button onclick="deleteRequestRecord('${r.id}')" class="text-red-400 hover:text-red-600">
+                            <i class="fas fa-trash-alt"></i>
+                        </button>
+                    </td>` : ''}
+            </tr>
+        `;
+    }).join('')}
+</tbody>
       <tbody class="divide-y divide-slate-100">
     ${requestsData.map(r => {
         const isApprover = currentUser.role === 'approver';
@@ -457,32 +481,41 @@ const firebaseConfig = {
         }
 
         async function approveRequest(reqId, newStatus) {
-            if (!auth.currentUser || currentUser.role !== 'approver') return;
+    if (!auth.currentUser || currentUser.role !== 'approver') return;
 
-            try {
-                const reqRef = getRequestsCollection().doc(reqId);
-                const snap = await reqRef.get();
-                const data = snap.data();
+    try {
+        const reqRef = getRequestsCollection().doc(reqId);
+        const snap = await reqRef.get();
+        const data = snap.data();
+        const stockItem = stockData.find(s => s.productName === data.productName);
 
-                if (newStatus === 'approved') {
-                    const stockItem = stockData.find(s => s.productName === data.productName);
-                    if (stockItem) {
-                        const stockRef = getStockCollection().doc(stockItem.id);
-                        await stockRef.update({
-                            currentStock: stockItem.currentStock - data.quantity,
-                            withdrawalCount: (stockItem.withdrawalCount || 0) + data.quantity
-                        });
-                    }
-                }
-
-                await reqRef.update({ 
-                    status: newStatus, 
-                    respondedAt: firebase.firestore.FieldValue.serverTimestamp() 
+        if (stockItem) {
+            const stockRef = getStockCollection().doc(stockItem.id);
+            
+            // กรณีที่ 1: อนุมัติ (ลดสต็อก)
+            if (newStatus === 'approved' && data.status !== 'approved') {
+                await stockRef.update({
+                    currentStock: stockItem.currentStock - data.quantity,
+                    withdrawalCount: (stockItem.withdrawalCount || 0) + data.quantity
                 });
-            } catch (err) {
-                alert('ดำเนินการไม่สำเร็จ: ' + err.message);
+            } 
+            // กรณีที่ 2: ปฏิเสธรายการที่เคยอนุมัติไปแล้ว (คืนสต็อก)
+            else if (newStatus === 'rejected' && data.status === 'approved') {
+                await stockRef.update({
+                    currentStock: stockItem.currentStock + data.quantity,
+                    withdrawalCount: (stockItem.withdrawalCount || 0) - data.quantity
+                });
             }
         }
+
+        await reqRef.update({ 
+            status: newStatus, 
+            respondedAt: firebase.firestore.FieldValue.serverTimestamp() 
+        });
+    } catch (err) {
+        alert('ดำเนินการไม่สำเร็จ: ' + err.message);
+    }
+}
 
         function getStatusClass(status) {
             if (status === 'approved') return 'bg-green-100 text-green-700';
@@ -586,6 +619,26 @@ function updateCloudUsage() {
         nav.appendChild(usageBox);
     }
     usageBox.innerHTML = usageHTML;
+}
+async function deleteRequestRecord(docId) {
+    // 1. ตรวจสอบสิทธิ์ซ้ำเพื่อความปลอดภัย
+    if (!auth.currentUser || currentUser.role !== 'approver') {
+        alert('คุณไม่มีสิทธิ์ลบรายการนี้');
+        return;
+    }
+
+    // 2. ยืนยันการลบ
+    if (!confirm('ยืนยันการลบรายการประวัตินี้? (การลบประวัติจะไม่คืนค่าสต็อกสินค้าโดยอัตโนมัติ)')) return;
+
+    try {
+        // 3. ใช้ Helper Function getRequestsCollection() เพื่อลบข้อมูลตามโครงสร้าง Firebase
+        await getRequestsCollection().doc(docId).delete();
+        console.log("ลบรายการสำเร็จ");
+        // ระบบจะอัปเดต UI อัตโนมัติผ่าน onSnapshot listener
+    } catch (err) {
+        console.error("Delete Error:", err);
+        alert('ไม่สามารถลบข้อมูลได้: ' + err.message);
+    }
 }
     </script>
 </body>
