@@ -250,8 +250,7 @@ const firebaseConfig = {
         ${currentUser.role === 'approver' ? '<th class="px-6 py-4 text-center">จัดการ</th>' : ''}
     </tr>
 </thead>
-                            // ปรับปรุงส่วนภายใน requestsData.map(r => ... ) ดังนี้:
-<tbody class="divide-y divide-slate-100">
+      <tbody class="divide-y divide-slate-100">
     ${requestsData.map(r => {
         const isApprover = currentUser.role === 'approver';
         
