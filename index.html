@@ -241,78 +241,53 @@ const firebaseConfig = {
                         </form>
                     </div>
                 `;
-            } else if (currentTab === 'status') {
+            } } else if (currentTab === 'status') {
                 container.innerHTML = `
                     <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
                         <table class="w-full text-left border-collapse">
-                            // ส่วนหัวตาราง (Thead)
-<thead class="bg-slate-50 text-slate-500 text-xs uppercase">
-    <tr>
-        <th class="px-6 py-4">วันที่</th>
-        <th class="px-6 py-4">สินค้า</th>
-        <th class="px-6 py-4">จำนวน</th>
-        <th class="px-6 py-4">ผู้เบิก/ไรเดอร์</th>
-        <th class="px-6 py-4">สถานะ</th>
-        <!-- ตรวจสอบว่ามีบรรทัดนี้ไหม -->
-        ${currentUser.role === 'approver' ? '<th class="px-6 py-4 text-center">จัดการ</th>' : ''}
-    </tr>
-</thead>
+                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                                <tr>
+                                    <th class="px-6 py-4">วันที่</th>
+                                    <th class="px-6 py-4">สินค้า</th>
+                                    <th class="px-6 py-4">จำนวน</th>
+                                    <th class="px-6 py-4">ผู้เบิก/ไรเดอร์</th>
+                                    <th class="px-6 py-4">สถานะ</th>
+                                    ${currentUser.role === 'approver' ? '<th class="px-6 py-4 text-center">จัดการ</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${requestsData.map(r => {
+                                    const isApprover = currentUser.role === 'approver';
+                                    
+                                    const qtyDisplay = isApprover 
+                                        ? `<input type="number" value="${r.quantity}" onchange="updateRequestField('${r.id}', 'quantity', this.value)" class="w-16 border rounded px-1 text-center">`
+                                        : r.quantity;
 
-// ส่วนเนื้อหาตาราง (Tbody)
-<tbody class="divide-y divide-slate-100">
-    ${requestsData.map(r => {
-        const isApprover = currentUser.role === 'approver';
-        // ... (โค้ดส่วนอื่นๆ)
-        return `
-            <tr>
-                <!-- ... (คอลัมน์ข้อมูลอื่นๆ) ... -->
-                <td class="px-6 py-4 text-sm">${statusDisplay}</td>
-                
-                <!-- ตรวจสอบปุ่มลบตรงนี้ -->
-                ${isApprover ? `
-                    <td class="px-6 py-4 text-center">
-                        <button onclick="deleteRequestRecord('${r.id}')" class="text-red-400 hover:text-red-600">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </td>` : ''}
-            </tr>
-        `;
-    }).join('')}
-</tbody>
-      <tbody class="divide-y divide-slate-100">
-    ${requestsData.map(r => {
-        const isApprover = currentUser.role === 'approver';
-        
-        // ถ้าเป็น Approver ให้แสดงเป็น Input ถ้าไม่ใช่ให้แสดงเป็นข้อความปกติ
-        const qtyDisplay = isApprover 
-            ? `<input type="number" value="${r.quantity}" onchange="updateRequestField('${r.id}', 'quantity', this.value)" class="w-16 border rounded px-1 text-center">`
-            : r.quantity;
+                                    const statusDisplay = isApprover
+                                        ? `<select onchange="updateRequestField('${r.id}', 'status', this.value)" class="text-xs border rounded p-1 ${getStatusClass(r.status)}">
+                                            <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>รออนุมัติ</option>
+                                            <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>อนุมัติแล้ว</option>
+                                            <option value="rejected" ${r.status === 'rejected' ? 'selected' : ''}>ปฏิเสธ</option>
+                                           </select>`
+                                        : `<span class="px-3 py-1 rounded-full text-xs font-bold ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span>`;
 
-        const statusDisplay = isApprover
-            ? `<select onchange="updateRequestField('${r.id}', 'status', this.value)" class="text-xs border rounded p-1 ${getStatusClass(r.status)}">
-                <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>รออนุมัติ</option>
-                <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>อนุมัติแล้ว</option>
-                <option value="rejected" ${r.status === 'rejected' ? 'selected' : ''}>ปฏิเสธ</option>
-               </select>`
-            : `<span class="px-3 py-1 rounded-full text-xs font-bold ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span>`;
-
-        return `
-            <tr class="hover:bg-slate-50 transition">
-                <td class="px-6 py-4 text-sm">${r.date}</td>
-                <td class="px-6 py-4 text-sm font-bold">${r.productName}</td>
-                <td class="px-6 py-4 text-sm">${qtyDisplay}</td>
-                <td class="px-6 py-4 text-sm">${r.requesterName}<br><span class="text-[10px] text-slate-400">Rider: ${r.riderName}</span></td>
-                <td class="px-6 py-4 text-sm">${statusDisplay}</td>
-                ${isApprover ? `
-                    <td class="px-6 py-4 text-center">
-                        <button onclick="deleteRequestRecord('${r.id}')" class="text-red-400 hover:text-red-600">
-                            <i class="fas fa-trash-alt"></i>
-                        </button>
-                    </td>` : ''}
-            </tr>
-        `;
-    }).join('')}
-</tbody>
+                                    return `
+                                        <tr class="hover:bg-slate-50 transition">
+                                            <td class="px-6 py-4 text-sm">${r.date}</td>
+                                            <td class="px-6 py-4 text-sm font-bold">${r.productName}</td>
+                                            <td class="px-6 py-4 text-sm">${qtyDisplay}</td>
+                                            <td class="px-6 py-4 text-sm">${r.requesterName}<br><span class="text-[10px] text-slate-400">Rider: ${r.riderName}</span></td>
+                                            <td class="px-6 py-4 text-sm">${statusDisplay}</td>
+                                            ${isApprover ? `
+                                                <td class="px-6 py-4 text-center">
+                                                    <button onclick="deleteRequestRecord('${r.id}')" class="text-red-400 hover:text-red-600">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </td>` : ''}
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
                         </table>
                         ${requestsData.length === 0 ? '<div class="p-10 text-center text-slate-400">ยังไม่มีประวัติการเบิก</div>' : ''}
                     </div>
