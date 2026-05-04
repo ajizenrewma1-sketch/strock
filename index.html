@@ -828,10 +828,34 @@ async function handleEditStock(docId, name, currentQty, currentMin) {
     } catch(e) { await KuromiAlert(e.message); }
 }
 
+// ปรับปรุงฟังก์ชัน handleDeleteProduct ให้ลบรายการเคลื่อนไหวที่เกี่ยวข้องออกด้วย
 async function handleDeleteProduct(docId, name) {
-    if (await KuromiConfirm(`ลบ ${name} หรือไม่?`)) {
-        await getStockCollection().doc(docId).delete();
-        await KuromiAlert("ลบแล้ว");
+    if (await KuromiConfirm(`ลบ ${name} หรือไม่?\n\nคำเตือน: ประวัติการเบิกและการเคลื่อนไหวทั้งหมดของสินค้าชิ้นนี้จะถูกลบออกด้วย`)) {
+        try {
+            const batch = db.batch();
+            
+            // 1. ลบตัวสินค้าจากคอลเลกชันสต็อก
+            batch.delete(getStockCollection().doc(docId));
+
+            // 2. ค้นหาและเตรียมลบประวัติการเบิก (requests) ที่เกี่ยวข้อง
+            const requestsQuery = await getRequestsCollection().where('productName', '==', name).get();
+            requestsQuery.forEach(doc => {
+                // ระบุข้อความใน Detail ก่อนทำการลบ (ในกรณีที่มีระบบ Audit Log เก็บข้อมูลไว้)[cite: 13]
+                batch.delete(doc.ref);
+            });
+
+            // 3. ค้นหาและเตรียมลบ Log การเพิ่มสินค้า (add_logs) ที่เกี่ยวข้อง[cite: 13]
+            const additionsQuery = await getAddLogsCollection().where('productName', '==', name).get();
+            additionsQuery.forEach(doc => {
+                batch.delete(doc.ref);
+            });
+
+            // ทำการลบข้อมูลทั้งหมดในครั้งเดียวแบบ Batch[cite: 13]
+            await batch.commit();
+            await KuromiAlert("ลบสินค้าและประวัติการเคลื่อนไหวที่เกี่ยวข้องเรียบร้อยแล้ว\n(สถานะ: ลบรายการจากหน้าสินค้าคงเหลือ)");[cite: 13]
+        } catch (err) {
+            await KuromiAlert("เกิดข้อผิดพลาดในการลบข้อมูล: " + err.message);[cite: 13]
+        }
     }
 }
 
