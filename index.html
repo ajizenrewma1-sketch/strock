@@ -141,7 +141,7 @@ let stockData = [];
 let requestsData = [];
 let addLogsData = [];
 let currentTab = '';
-let summarySelectedDate = new Date().toISOString().split('T')[0]; //
+let summarySelectedDate = new Date().toISOString().split('T')[0];
 let unsubStock = null;
 let unsubRequests = null;
 let unsubAddLogs = null;
@@ -562,7 +562,7 @@ function renderTab() {
                                             </td>` : ''}
                                     </tr>
                                 `).join('')}
-                                ${movementsForDate.length === 0 ? '<tr><td colspan="${currentUser.role === 'approver' ? 6 : 5}" class="p-16 text-center text-slate-300 font-bold">ไม่มีการเคลื่อนไหวในวันที่คุณเลือก</td></tr>' : ''}
+                                ${movementsForDate.length === 0 ? `<tr><td colspan="${currentUser.role === 'approver' ? 6 : 5}" class="p-16 text-center text-slate-300 font-bold">ไม่มีการเคลื่อนไหวในวันที่คุณเลือก</td></tr>` : ''}
                             </tbody>
                         </table>
                     </div>
