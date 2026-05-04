@@ -73,7 +73,7 @@ function KuromiAlert(msg) {
         const modal = document.createElement('div');
         modal.className = "fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
         modal.innerHTML = `
-            <div class="bg-white rounded-[2rem] p-8 w-full max-sm shadow-2xl transform transition-all border-4 border-slate-800 relative overflow-hidden text-center">
+            <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl transform transition-all border-4 border-slate-800 relative overflow-hidden text-center">
                 <div class="w-16 h-16 bg-pink-100 text-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl transform rotate-3">
                     <i class="fas fa-bell transform -rotate-3"></i>
                 </div>
@@ -338,7 +338,8 @@ function renderTab() {
                                 : `<span class="font-bold text-pink-600 text-lg">${r.quantity}</span>`;
 
                             const statusDisplay = isApprover
-                                ? `<select onchange="updateRequestField('${r.id}', 'status', this.value)" class="text-xs font-bold rounded-full px-3 py-1 outline-none cursor-pointer ${getStatusClass(r.status)}">
+                                // เปลี่ยนไปเรียก approveRequest เพื่อให้หักลบสต็อกอย่างถูกต้อง
+                                ? `<select onchange="approveRequest('${r.id}', this.value)" class="text-xs font-bold rounded-full px-3 py-1 outline-none cursor-pointer ${getStatusClass(r.status)}">
                                     <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>รออนุมัติ</option>
                                     <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>อนุมัติแล้ว</option>
                                     <option value="rejected" ${r.status === 'rejected' ? 'selected' : ''}>ปฏิเสธ</option>
@@ -716,8 +717,9 @@ async function handleAddNewProduct(e) {
         const existingProduct = stockData.find(s => s.productName === name);
 
         if (existingProduct) {
+            // ใช้ FieldValue.increment ป้องกันการคำนวณชนกัน
             await getStockCollection().doc(existingProduct.id).update({
-                currentStock: existingProduct.currentStock + stockToAdd,
+                currentStock: firebase.firestore.FieldValue.increment(stockToAdd),
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         } else {
@@ -769,27 +771,49 @@ async function handleRequestSubmit(e) {
     } catch (err) { await KuromiAlert('ไม่สำเร็จ: ' + err.message); }
 }
 
+// อัปเดตตรรกะการอนุมัติให้รองรับทุกการเปลี่ยนสถานะแบบสมบูรณ์และป้องกัน Race Condition
 async function approveRequest(reqId, newStatus) {
     const reqRef = getRequestsCollection().doc(reqId);
     const snap = await reqRef.get();
     const data = snap.data();
     const stockItem = stockData.find(s => s.productName === data.productName);
 
-    if (newStatus === 'approved' && (!stockItem || stockItem.currentStock < data.quantity)) return await KuromiAlert('สต็อกไม่เพียงพออนุมัติ');
-    if (!(await KuromiConfirm(`ยืนยันการดำเนินการ?`))) return;
+    if (newStatus === data.status) return;
+
+    if (newStatus === 'approved' && (!stockItem || stockItem.currentStock < data.quantity)) {
+        await KuromiAlert('สต็อกไม่เพียงพออนุมัติ');
+        renderTab();
+        return;
+    }
+    if (!(await KuromiConfirm(`ยืนยันการดำเนินการเปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"?`))) { 
+        renderTab(); 
+        return; 
+    }
 
     try {
         if (stockItem) {
             const stockRef = getStockCollection().doc(stockItem.id);
-            if (newStatus === 'approved') {
-                await stockRef.update({ currentStock: stockItem.currentStock - data.quantity, withdrawalCount: (stockItem.withdrawalCount || 0) + data.quantity });
-            } else if (newStatus === 'rejected' && data.status === 'approved') {
-                await stockRef.update({ currentStock: stockItem.currentStock + data.quantity, withdrawalCount: (stockItem.withdrawalCount || 0) - data.quantity });
+            // ถ้าอนุมัติ (หักสต็อก)
+            if (newStatus === 'approved' && data.status !== 'approved') {
+                await stockRef.update({ 
+                    currentStock: firebase.firestore.FieldValue.increment(-data.quantity), 
+                    withdrawalCount: firebase.firestore.FieldValue.increment(data.quantity) 
+                });
+            } 
+            // ถ้ายกเลิกการอนุมัติ (คืนสต็อก)
+            else if (data.status === 'approved' && newStatus !== 'approved') {
+                await stockRef.update({ 
+                    currentStock: firebase.firestore.FieldValue.increment(data.quantity), 
+                    withdrawalCount: firebase.firestore.FieldValue.increment(-data.quantity) 
+                });
             }
         }
         await reqRef.update({ status: newStatus, respondedAt: firebase.firestore.FieldValue.serverTimestamp() });
         await KuromiAlert('ดำเนินการแล้ว');
-    } catch (err) { await KuromiAlert('ไม่สำเร็จ: ' + err.message); }
+    } catch (err) { 
+        await KuromiAlert('ไม่สำเร็จ: ' + err.message); 
+        renderTab();
+    }
 }
 
 async function updateRequestField(reqId, field, value) {
@@ -799,16 +823,27 @@ async function updateRequestField(reqId, field, value) {
     const newValue = field === 'quantity' ? parseInt(value) : value;
     const stockItem = stockData.find(s => s.productName === oldData.productName);
 
-    if (field === 'quantity' && oldData.status === 'approved' && stockItem.currentStock < (newValue - oldData.quantity)) return await KuromiAlert('สต็อกไม่พอแก้เลข');
+    if (field === 'quantity' && oldData.status === 'approved' && stockItem.currentStock < (newValue - oldData.quantity)) {
+        await KuromiAlert('สต็อกไม่พอแก้เลข');
+        renderTab();
+        return;
+    }
     if (!(await KuromiConfirm(`ยืนยันการแก้ไขข้อมูล?`))) { renderTab(); return; }
 
     try {
         if (stockItem && field === 'quantity' && oldData.status === 'approved') {
-            await getStockCollection().doc(stockItem.id).update({ currentStock: stockItem.currentStock - (newValue - oldData.quantity), withdrawalCount: (stockItem.withdrawalCount || 0) + (newValue - oldData.quantity) });
+            const diff = newValue - oldData.quantity;
+            await getStockCollection().doc(stockItem.id).update({ 
+                currentStock: firebase.firestore.FieldValue.increment(-diff), 
+                withdrawalCount: firebase.firestore.FieldValue.increment(diff) 
+            });
         }
         await reqRef.update({ [field]: newValue, updatedBy: currentUser.name, updatedAt: firebase.firestore.FieldValue.serverTimestamp() });
         await KuromiAlert('บันทึกแล้ว');
-    } catch (err) { await KuromiAlert('เกิดปัญหา: ' + err.message); }
+    } catch (err) { 
+        await KuromiAlert('เกิดปัญหา: ' + err.message); 
+        renderTab();
+    }
 }
 
 function toggleCustomProductInput() {
@@ -832,6 +867,7 @@ async function handleDeleteProduct(docId, name) {
     if (await KuromiConfirm(`ลบ ${name} หรือไม่?\n\nคำเตือน: ประวัติการเบิกและการเคลื่อนไหวทั้งหมดของสินค้าชิ้นนี้จะถูกลบออกด้วย`)) {
         try {
             const batch = db.batch();
+            
             batch.delete(getStockCollection().doc(docId));
 
             const requestsQuery = await getRequestsCollection().where('productName', '==', name).get();
