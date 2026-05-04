@@ -73,7 +73,7 @@ function KuromiAlert(msg) {
         const modal = document.createElement('div');
         modal.className = "fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
         modal.innerHTML = `
-            <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl transform transition-all border-4 border-slate-800 relative overflow-hidden text-center">
+            <div class="bg-white rounded-[2rem] p-8 w-full max-sm shadow-2xl transform transition-all border-4 border-slate-800 relative overflow-hidden text-center">
                 <div class="w-16 h-16 bg-pink-100 text-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl transform rotate-3">
                     <i class="fas fa-bell transform -rotate-3"></i>
                 </div>
@@ -828,33 +828,26 @@ async function handleEditStock(docId, name, currentQty, currentMin) {
     } catch(e) { await KuromiAlert(e.message); }
 }
 
-// ปรับปรุงฟังก์ชัน handleDeleteProduct ให้ลบรายการเคลื่อนไหวที่เกี่ยวข้องออกด้วย
 async function handleDeleteProduct(docId, name) {
     if (await KuromiConfirm(`ลบ ${name} หรือไม่?\n\nคำเตือน: ประวัติการเบิกและการเคลื่อนไหวทั้งหมดของสินค้าชิ้นนี้จะถูกลบออกด้วย`)) {
         try {
             const batch = db.batch();
-            
-            // 1. ลบตัวสินค้าจากคอลเลกชันสต็อก
             batch.delete(getStockCollection().doc(docId));
 
-            // 2. ค้นหาและเตรียมลบประวัติการเบิก (requests) ที่เกี่ยวข้อง
             const requestsQuery = await getRequestsCollection().where('productName', '==', name).get();
             requestsQuery.forEach(doc => {
-                // ระบุข้อความใน Detail ก่อนทำการลบ (ในกรณีที่มีระบบ Audit Log เก็บข้อมูลไว้)[cite: 13]
                 batch.delete(doc.ref);
             });
 
-            // 3. ค้นหาและเตรียมลบ Log การเพิ่มสินค้า (add_logs) ที่เกี่ยวข้อง[cite: 13]
             const additionsQuery = await getAddLogsCollection().where('productName', '==', name).get();
             additionsQuery.forEach(doc => {
                 batch.delete(doc.ref);
             });
 
-            // ทำการลบข้อมูลทั้งหมดในครั้งเดียวแบบ Batch[cite: 13]
             await batch.commit();
-            await KuromiAlert("ลบสินค้าและประวัติการเคลื่อนไหวที่เกี่ยวข้องเรียบร้อยแล้ว\n(สถานะ: ลบรายการจากหน้าสินค้าคงเหลือ)");[cite: 13]
+            await KuromiAlert("ลบสินค้าและประวัติการเคลื่อนไหวที่เกี่ยวข้องเรียบร้อยแล้ว\n(สถานะ: ลบรายการจากหน้าสินค้าคงเหลือ)");
         } catch (err) {
-            await KuromiAlert("เกิดข้อผิดพลาดในการลบข้อมูล: " + err.message);[cite: 13]
+            await KuromiAlert("เกิดข้อผิดพลาดในการลบข้อมูล: " + err.message);
         }
     }
 }
