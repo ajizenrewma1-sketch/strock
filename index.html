@@ -76,245 +76,531 @@ const firebaseConfig = {
   measurementId: "G-KCNWYY7SYH"
 };
         
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
 
-const getStockCollection = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('stock');
-const getRequestsCollection = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests');
+        // Helpers to get strict collection paths (Mandatory Rule 1)
+        const getStockCollection = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('stock');
+        const getRequestsCollection = () => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('requests');
 
-const MOCK_USERS = [
-    { username: 'requester', password: '123', role: 'requester', name: 'พนักงานเบิกสินค้า' },
-    { username: 'approver', password: '456', role: 'approver', name: 'หัวหน้า/ผู้อนุมัติ' }
-];
+        const MOCK_USERS = [
+            { username: 'requester', password: '123', role: 'requester', name: 'พนักงานเบิกสินค้า' },
+            { username: 'approver', password: '456', role: 'approver', name: 'หัวหน้า/ผู้อนุมัติ' }
+        ];
 
-let currentUser = null;
-let stockData = [];
-let requestsData = [];
-let currentTab = '';
-let unsubStock = null;
-let unsubRequests = null;
+        let currentUser = null;
+        let stockData = [];
+        let requestsData = [];
+        let currentTab = '';
+        let unsubStock = null;
+        let unsubRequests = null;
 
-// --- AUTH LOGIC ---
-const loginForm = document.getElementById('login-form');
-loginForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const loginBtn = document.getElementById('login-btn');
-    loginBtn.disabled = true;
-    loginBtn.innerText = 'กำลังตรวจสอบสิทธิ์...';
+        // --- AUTH LOGIC ---
+        const loginForm = document.getElementById('login-form');
+        loginForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const loginBtn = document.getElementById('login-btn');
+            loginBtn.disabled = true;
+            loginBtn.innerText = 'กำลังตรวจสอบสิทธิ์...';
 
-    const userMatch = MOCK_USERS.find(u => u.username === document.getElementById('username').value && u.password === document.getElementById('password').value);
-    
-    if (userMatch) {
-        try {
-            await auth.signInAnonymously();
-            currentUser = userMatch;
-            document.getElementById('login-section').classList.add('hidden');
-            document.getElementById('app-section').classList.remove('hidden');
-            document.getElementById('user-info').innerText = `สิทธิ์ใช้งาน: ${currentUser.name}`;
+            const userMatch = MOCK_USERS.find(u => u.username === document.getElementById('username').value && u.password === document.getElementById('password').value);
             
-            setupNav();
-            loadInitialTab();
-            startListeners();
-        } catch (error) {
-            console.error("Auth Error:", error);
-            alert('ไม่สามารถเชื่อมต่อฐานข้อมูลได้: ' + error.message);
+            if (userMatch) {
+                try {
+                    // Rule 3: Must await authentication before any Firestore calls
+                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                        await auth.signInWithCustomToken(__initial_auth_token);
+                    } else {
+                        await auth.signInAnonymously();
+                    }
+
+                    currentUser = userMatch;
+                    document.getElementById('login-section').classList.add('hidden');
+                    document.getElementById('app-section').classList.remove('hidden');
+                    document.getElementById('user-info').innerText = `สิทธิ์ใช้งาน: ${currentUser.name}`;
+                    
+                    setupNav();
+                    loadInitialTab();
+                    startListeners();
+                } catch (error) {
+                    console.error("Auth Error:", error);
+                    alert('ไม่สามารถเชื่อมต่อฐานข้อมูลได้: ' + error.message);
+                }
+            } else {
+                alert('Username หรือ Password ไม่ถูกต้อง');
+            }
+            loginBtn.disabled = false;
+            loginBtn.innerText = 'เข้าสู่ระบบ';
+        });
+
+        function handleLogout() {
+            if (unsubStock) unsubStock();
+            if (unsubRequests) unsubRequests();
+            auth.signOut();
+            location.reload();
         }
-    } else {
-        alert('Username หรือ Password ไม่ถูกต้อง');
-    }
-    loginBtn.disabled = false;
-    loginBtn.innerText = 'เข้าสู่ระบบ';
-});
 
-function handleLogout() {
-    if (unsubStock) unsubStock();
-    if (unsubRequests) unsubRequests();
-    auth.signOut();
-    location.reload();
-}
+        // --- NAVIGATION ---
+        function setupNav() {
+            const nav = document.getElementById('nav-menu');
+            let menu = `
+                <button onclick="showTab('request')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
+                    <i class="fas fa-plus-circle"></i> แจ้งเบิกสินค้า
+                </button>
+                <button onclick="showTab('status')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
+                    <i class="fas fa-list-ul"></i> รายงานสถานะ
+                </button>
+            `;
 
-function setupNav() {
-    const nav = document.getElementById('nav-menu');
-    let menu = `
-        <button onclick="showTab('request')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
-            <i class="fas fa-plus-circle"></i> แจ้งเบิกสินค้า
-        </button>
-        <button onclick="showTab('status')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
-            <i class="fas fa-list-ul"></i> รายงานสถานะ
-        </button>
-    `;
+            if (currentUser.role === 'approver') {
+                menu += `
+                    <div class="pt-4 pb-2 px-4 text-[10px] uppercase font-bold text-slate-400">การจัดการหลัก</div>
+                    <button onclick="showTab('approve')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
+                        <i class="fas fa-check-double"></i> อนุมัติเบิกสินค้า
+                    </button>
+                    <button onclick="showTab('stock')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
+                        <i class="fas fa-warehouse"></i> สินค้าคงเหลือ
+                    </button>
+                `;
+            }
+            nav.innerHTML = menu;
+        }
 
-    if (currentUser.role === 'approver') {
-        menu += `
-            <div class="pt-4 pb-2 px-4 text-[10px] uppercase font-bold text-slate-400">การจัดการหลัก</div>
-            <button onclick="showTab('approve')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
-                <i class="fas fa-check-double"></i> อนุมัติเบิกสินค้า
-            </button>
-            <button onclick="showTab('stock')" class="nav-btn w-full text-left flex items-center gap-3 px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-50 hover:text-blue-600 transition">
-                <i class="fas fa-warehouse"></i> สินค้าคงเหลือ
-            </button>
-        `;
-    }
-    nav.innerHTML = menu;
-}
+        function loadInitialTab() {
+            showTab(currentUser.role === 'approver' ? 'approve' : 'request');
+        }
 
-function loadInitialTab() {
-    showTab(currentUser.role === 'approver' ? 'approve' : 'request');
-}
-
-function startListeners() {
+        // --- DATA LISTENERS ---
+        function startListeners() {
     if (!auth.currentUser) return;
 
+    // Listener สำหรับข้อมูลสินค้า
     unsubStock = getStockCollection().onSnapshot(snap => {
         stockData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
         if (currentTab === 'stock' || currentTab === 'request') renderTab();
-        updateCloudUsage(); 
+        
+        updateCloudUsage(); // <--- เพิ่มตรงนี้
     }, err => console.error("Stock Sync Error:", err));
 
+    // Listener สำหรับรายการเบิก
     unsubRequests = getRequestsCollection().onSnapshot(snap => {
         requestsData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}))
             .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         if (currentTab === 'status' || currentTab === 'approve') renderTab();
-        updateCloudUsage(); 
+        
+        updateCloudUsage(); // <--- เพิ่มตรงนี้
     }, err => console.error("Requests Sync Error:", err));
 }
 
-function showTab(tab) {
-    currentTab = tab;
-    renderTab();
-}
+        function showTab(tab) {
+            currentTab = tab;
+            renderTab();
+        }
 
-// --- ส่วนที่ต้องใช้ Render หน้าตาตาราง ---
-function getStatusClass(status) {
-    if (status === 'approved') return 'bg-green-100 text-green-700';
-    if (status === 'rejected') return 'bg-red-100 text-red-700';
-    return 'bg-amber-100 text-amber-700';
-}
+        // --- RENDER LOGIC ---
+        function renderTab() {
+            const container = document.getElementById('content-area');
+            if (!container) return;
+            
+            if (currentTab === 'request') {
+                container.innerHTML = `
+                    <div class="bg-white p-6 rounded-xl shadow-sm border max-w-2xl">
+                        <h3 class="text-lg font-bold mb-6">กรอกข้อมูลเบิกสินค้า</h3>
+                        <form onsubmit="handleRequestSubmit(event)" class="space-y-4">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">วันที่</label>
+                                    <input type="date" id="req-date" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" value="${new Date().toISOString().split('T')[0]}" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">เลือกสินค้า</label>
+                                    <select id="req-product" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                                        <option value="">-- เลือกสินค้า --</option>
+                                        ${stockData.map(s => `<option value="${s.productName}" ${s.currentStock <= 0 ? 'disabled' : ''}>${s.productName} (คงเหลือ: ${s.currentStock})</option>`).join('')}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">จำนวน</label>
+                                    <input type="number" id="req-qty" min="1" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">ชื่อผู้เบิก</label>
+                                    <input type="text" id="req-name" class="w-full px-4 py-2 border rounded-lg bg-slate-50" value="${currentUser.name}" readonly>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">ชื่อไรเดอร์</label>
+                                    <input type="text" id="req-rider" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium mb-1">รหัสร้าน</label>
+                                    <input type="text" id="req-store" class="w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none transition" required>
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg font-bold shadow-lg hover:bg-blue-700 transition">ยืนยันการเบิก</button>
+                        </form>
+                    </div>
+                `;
+             } else if (currentTab === 'status') {
+                container.innerHTML = `
+                    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
+                                <tr>
+                                    <th class="px-6 py-4">วันที่</th>
+                                    <th class="px-6 py-4">สินค้า</th>
+                                    <th class="px-6 py-4">จำนวน</th>
+                                    <th class="px-6 py-4">ผู้เบิก/ไรเดอร์</th>
+                                    <th class="px-6 py-4">สถานะ</th>
+                                    ${currentUser.role === 'approver' ? '<th class="px-6 py-4 text-center">จัดการ</th>' : ''}
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${requestsData.map(r => {
+                                    const isApprover = currentUser.role === 'approver';
+                                    
+                                    const qtyDisplay = isApprover 
+                                        ? `<input type="number" value="${r.quantity}" onchange="updateRequestField('${r.id}', 'quantity', this.value)" class="w-16 border rounded px-1 text-center">`
+                                        : r.quantity;
 
-function getStatusLabel(status) {
-    if (status === 'approved') return 'อนุมัติแล้ว';
-    if (status === 'rejected') return 'ปฏิเสธ';
-    return 'รออนุมัติ';
-}
+                                    const statusDisplay = isApprover
+                                        ? `<select onchange="updateRequestField('${r.id}', 'status', this.value)" class="text-xs border rounded p-1 ${getStatusClass(r.status)}">
+                                            <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>รออนุมัติ</option>
+                                            <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>อนุมัติแล้ว</option>
+                                            <option value="rejected" ${r.status === 'rejected' ? 'selected' : ''}>ปฏิเสธ</option>
+                                           </select>`
+                                        : `<span class="px-3 py-1 rounded-full text-xs font-bold ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span>`;
 
-function renderTab() {
-    const container = document.getElementById('content-area');
-    if (!container) return;
-    
-    if (currentTab === 'request') {
-        container.innerHTML = `
-            <div class="bg-white p-6 rounded-xl shadow-sm border max-w-2xl">
-                <h3 class="text-lg font-bold mb-6">กรอกข้อมูลเบิกสินค้า</h3>
-                <form onsubmit="handleRequestSubmit(event)" class="space-y-4">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium mb-1">เลือกสินค้า</label>
-                            <select id="req-product" class="w-full px-4 py-2 border rounded-lg outline-none" required>
-                                <option value="">-- เลือกสินค้า --</option>
-                                ${stockData.map(s => `<option value="${s.productName}">${s.productName} (คงเหลือ: ${s.currentStock})</option>`).join('')}
-                            </select>
+                                    return `
+                                        <tr class="hover:bg-slate-50 transition">
+                                            <td class="px-6 py-4 text-sm">${r.date}</td>
+                                            <td class="px-6 py-4 text-sm font-bold">${r.productName}</td>
+                                            <td class="px-6 py-4 text-sm">${qtyDisplay}</td>
+                                            <td class="px-6 py-4 text-sm">${r.requesterName}<br><span class="text-[10px] text-slate-400">Rider: ${r.riderName}</span></td>
+                                            <td class="px-6 py-4 text-sm">${statusDisplay}</td>
+                                            ${isApprover ? `
+                                                <td class="px-6 py-4 text-center">
+                                                    <button onclick="deleteRequestRecord('${r.id}')" class="text-red-400 hover:text-red-600">
+                                                        <i class="fas fa-trash-alt"></i>
+                                                    </button>
+                                                </td>` : ''}
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                        ${requestsData.length === 0 ? '<div class="p-10 text-center text-slate-400">ยังไม่มีประวัติการเบิก</div>' : ''}
+                    </div>
+                `;
+            } else if (currentTab === 'approve') {
+                const pending = requestsData.filter(r => r.status === 'pending');
+                container.innerHTML = `
+                    <div class="space-y-4">
+                        <h2 class="text-xl font-bold text-slate-700 mb-4">รายการรออนุมัติ (${pending.length})</h2>
+                        ${pending.map(r => `
+                            <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6">
+                                <div class="grid grid-cols-2 md:grid-cols-4 flex-1 gap-4 w-full">
+                                    <div><label class="text-[10px] text-slate-400 uppercase font-bold">สินค้า</label><p class="font-bold text-slate-800">${r.productName}</p></div>
+                                    <div><label class="text-[10px] text-slate-400 uppercase font-bold">จำนวน</label><p class="font-bold text-blue-600">${r.quantity}</p></div>
+                                    <div><label class="text-[10px] text-slate-400 uppercase font-bold">ผู้เบิก</label><p class="text-sm">${r.requesterName}</p></div>
+                                    <div><label class="text-[10px] text-slate-400 uppercase font-bold">รหัสร้าน</label><p class="text-sm">${r.storeId}</p></div>
+                                </div>
+                                <div class="flex gap-2 w-full md:w-auto">
+                                    <button onclick="approveRequest('${r.id}', 'rejected')" class="flex-1 px-4 py-2 rounded-lg font-bold text-red-600 bg-red-50 hover:bg-red-100 transition">ปฏิเสธ</button>
+                                    <button onclick="approveRequest('${r.id}', 'approved')" class="flex-1 px-6 py-2 rounded-lg font-bold text-white bg-green-600 hover:bg-green-700 shadow-md transition">อนุมัติ</button>
+                                </div>
+                            </div>
+                        `).join('')}
+                        ${pending.length === 0 ? '<div class="bg-slate-100 border-2 border-dashed rounded-xl p-20 text-center text-slate-400">ไม่มีรายการรออนุมัติ</div>' : ''}
+                    </div>
+                `;
+            } else if (currentTab === 'stock') {
+                container.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="bg-blue-600 p-6 rounded-2xl text-white shadow-lg">
+                            <p class="opacity-80 text-sm italic">รายการสินค้าทั้งหมด</p>
+                            <p class="text-3xl font-bold">${stockData.length} รายการ</p>
                         </div>
-                        <div>
-                            <label class="block text-sm font-medium mb-1">จำนวน</label>
-                            <input type="number" id="req-qty" min="1" class="w-full px-4 py-2 border rounded-lg" required>
+                        <div class="bg-white p-6 rounded-2xl border shadow-sm">
+                            <p class="text-slate-400 text-sm font-bold">จำนวนการเบิกสะสม</p>
+                            <p class="text-3xl font-bold text-slate-700">${stockData.reduce((a,b) => a + (b.withdrawalCount || 0), 0)}</p>
+                        </div>
+                        <div class="bg-white p-6 rounded-2xl border border-red-100 shadow-sm">
+                            <p class="text-red-400 text-sm font-bold">สินค้าที่ต้องสั่งเพิ่ม</p>
+                            <p class="text-3xl font-bold text-red-600">${stockData.filter(s => s.currentStock <= s.minStock).length}</p>
                         </div>
                     </div>
-                    <button type="submit" class="w-full mt-4 bg-blue-600 text-white py-3 rounded-lg font-bold">ยืนยันการเบิก</button>
-                </form>
-            </div>
-        `;
-    } else if (currentTab === 'status') {
-        container.innerHTML = `
-            <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
-                <table class="w-full text-left">
-                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase">
-                        <tr>
-                            <th class="px-6 py-4">สินค้า</th>
-                            <th class="px-6 py-4">จำนวน</th>
-                            <th class="px-6 py-4">สถานะ</th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-slate-100">
-                        ${requestsData.map(r => `
-                            <tr>
-                                <td class="px-6 py-4 text-sm font-bold">${r.productName}</td>
-                                <td class="px-6 py-4 text-sm">${r.quantity}</td>
-                                <td class="px-6 py-4 text-sm font-bold ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</td>
-                            </tr>
-                        `).join('')}
-                    </tbody>
-                </table>
-            </div>
-        `;
+
+                    <!-- Add New Product Form (Approver Only) -->
+                    <div class="bg-white p-6 rounded-xl border border-slate-200 mb-8 shadow-sm">
+                        <h4 class="font-bold mb-4 flex items-center gap-2 text-blue-600"><i class="fas fa-plus-circle"></i> เพิ่มสินค้าใหม่</h4>
+                        <form onsubmit="handleAddNewProduct(event)" class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                            <input type="text" id="new-prod-name" placeholder="ชื่อสินค้า" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                            <input type="number" id="new-prod-stock" placeholder="จำนวนเริ่มต้น" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                            <input type="number" id="new-prod-min" placeholder="จุดวิกฤต (ขั้นต่ำ)" class="px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 outline-none" required>
+                            <button type="submit" class="bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition">บันทึกสินค้า</button>
+                        </form>
+                    </div>
+
+                    <div class="bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-slate-50 text-slate-500 text-[11px] uppercase tracking-wider">
+                                <tr>
+                                    <th class="px-6 py-4">สถานะ</th>
+                                    <th class="px-6 py-4">ชื่อสินค้า</th>
+                                    <th class="px-6 py-4">จำนวนคงเหลือ</th>
+                                    <th class="px-6 py-4 text-center">จุดสั่งซื้อขั้นต่ำ</th>
+                                    <th class="px-6 py-4 text-center">จัดการ</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-100">
+                                ${stockData.map(s => `
+                                    <tr class="hover:bg-slate-50 transition group">
+                                        <td class="px-6 py-4 text-center">
+                                            <div class="w-2.5 h-2.5 rounded-full mx-auto ${s.currentStock <= s.minStock ? 'bg-red-500 animate-pulse' : 'bg-green-500'}"></div>
+                                        </td>
+                                        <td class="px-6 py-4 font-bold text-slate-800">${s.productName}</td>
+                                        <td class="px-6 py-4 font-bold ${s.currentStock <= s.minStock ? 'text-red-600' : 'text-slate-800'}">${s.currentStock}</td>
+                                        <td class="px-6 py-4 text-slate-400 text-center">${s.minStock}</td>
+                                        <td class="px-6 py-4 text-center">
+                                            <button onclick="handleDeleteProduct('${s.id}', '${s.productName}')" class="w-9 h-9 rounded-full text-slate-300 hover:text-red-600 hover:bg-red-50 transition inline-flex items-center justify-center">
+                                                <i class="fas fa-trash-alt text-sm"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        ${stockData.length === 0 ? '<div class="p-10 text-center text-slate-400">ไม่มีสินค้าในระบบ</div>' : ''}
+                    </div>
+                `;
+            }
+        }
+
+        // --- ACTION HANDLERS ---
+        async function handleAddNewProduct(e) {
+            e.preventDefault();
+            if (!auth.currentUser || currentUser.role !== 'approver') return;
+
+            const name = document.getElementById('new-prod-name').value;
+            const stock = parseInt(document.getElementById('new-prod-stock').value);
+            const min = parseInt(document.getElementById('new-prod-min').value);
+
+            try {
+                // Using getStockCollection() for Rule 1 Compliance
+                await getStockCollection().add({
+                    productName: name,
+                    currentStock: stock,
+                    minStock: min,
+                    withdrawalCount: 0,
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                e.target.reset();
+            } catch (err) {
+                alert('เพิ่มสินค้าไม่สำเร็จ: ' + err.message);
+            }
+        }
+
+        async function handleDeleteProduct(docId, name) {
+            // Re-verify authentication and role before deletion
+            if (!auth.currentUser || currentUser.role !== 'approver') {
+                alert('คุณไม่มีสิทธิ์ลบข้อมูลนี้');
+                return;
+            }
+
+            if (!confirm(`ยืนยันการลบสินค้า "${name}"? ข้อมูลนี้จะไม่สามารถกู้คืนได้`)) return;
+
+            try {
+                // Rule 1: Using strict path from helper
+                const productRef = getStockCollection().doc(docId);
+                await productRef.delete();
+                console.log(`ลบสินค้า ${name} สำเร็จ`);
+                // UI will auto-update via onSnapshot listener
+            } catch (err) {
+                console.error("Delete failed:", err);
+                alert('ลบสินค้าไม่สำเร็จ: ' + err.message);
+            }
+        }
+
+        async function handleRequestSubmit(e) {
+            e.preventDefault();
+            if (!auth.currentUser) return;
+
+            const productName = document.getElementById('req-product').value;
+            const quantity = parseInt(document.getElementById('req-qty').value);
+            const riderName = document.getElementById('req-rider').value;
+            const storeId = document.getElementById('req-store').value;
+            const date = document.getElementById('req-date').value;
+
+            const product = stockData.find(s => s.productName === productName);
+            if (!product || product.currentStock < quantity) {
+                return alert('สินค้าในสต็อกไม่เพียงพอ');
+            }
+
+            try {
+                await getRequestsCollection().add({
+                    date,
+                    productName,
+                    quantity,
+                    requesterName: currentUser.name, 
+                    riderName,
+                    storeId,
+                    status: 'pending',
+                    createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                alert('บันทึกรายการเบิกแล้ว รอหัวหน้าอนุมัติ');
+                showTab('status');
+            } catch (err) {
+                alert('ส่งคำขอเบิกไม่สำเร็จ: ' + err.message);
+            }
+        }
+
+        async function approveRequest(reqId, newStatus) {
+    if (!auth.currentUser || currentUser.role !== 'approver') return;
+
+    try {
+        const reqRef = getRequestsCollection().doc(reqId);
+        const snap = await reqRef.get();
+        const data = snap.data();
+        const stockItem = stockData.find(s => s.productName === data.productName);
+
+        if (stockItem) {
+            const stockRef = getStockCollection().doc(stockItem.id);
+            
+            // กรณีที่ 1: อนุมัติ (ลดสต็อก)
+            if (newStatus === 'approved' && data.status !== 'approved') {
+                await stockRef.update({
+                    currentStock: stockItem.currentStock - data.quantity,
+                    withdrawalCount: (stockItem.withdrawalCount || 0) + data.quantity
+                });
+            } 
+            // กรณีที่ 2: ปฏิเสธรายการที่เคยอนุมัติไปแล้ว (คืนสต็อก)
+            else if (newStatus === 'rejected' && data.status === 'approved') {
+                await stockRef.update({
+                    currentStock: stockItem.currentStock + data.quantity,
+                    withdrawalCount: (stockItem.withdrawalCount || 0) - data.quantity
+                });
+            }
+        }
+
+        await reqRef.update({ 
+            status: newStatus, 
+            respondedAt: firebase.firestore.FieldValue.serverTimestamp() 
+        });
+    } catch (err) {
+        alert('ดำเนินการไม่สำเร็จ: ' + err.message);
     }
 }
 
-async function handleRequestSubmit(e) {
-    e.preventDefault();
-    const productName = document.getElementById('req-product').value;
-    const quantity = parseInt(document.getElementById('req-qty').value);
+        function getStatusClass(status) {
+            if (status === 'approved') return 'bg-green-100 text-green-700';
+            if (status === 'rejected') return 'bg-red-100 text-red-700';
+            return 'bg-amber-100 text-amber-700';
+        }
+        function getStatusLabel(status) {
+            if (status === 'approved') return 'อนุมัติแล้ว';
+            if (status === 'rejected') return 'ปฏิเสธ';
+            return 'รออนุมัติ';
+        }
+// ฟังก์ชันสำหรับอัปเดตข้อมูลทีละฟิลด์
+// 1. ฟังก์ชันแสดง Pop-up ยืนยันรายละเอียด
+function showConfirmAction(title, detail, onConfirm) {
+    const isConfirmed = confirm(`⚠️ ยืนยันการดำเนินการ: ${title}\n\n📝 รายละเอียด:\n${detail}\n\nกด "ตกลง" เพื่อยืนยัน หรือ "ยกเลิก" เพื่อกลับไปแก้ไข`);
+    if (isConfirmed) onConfirm();
+}
+
+// 2. ฟังก์ชันอัปเดตข้อมูลพร้อมระบบ Pop-up และคำนวณสต็อก
+async function updateRequestField(reqId, field, value) {
+    if (currentUser.role !== 'approver') return;
+
     try {
-        await getRequestsCollection().add({
-            productName, quantity, status: 'pending',
-            requesterName: currentUser.name,
-            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        const reqRef = getRequestsCollection().doc(reqId);
+        const snap = await reqRef.get();
+        const oldData = snap.data();
+        
+        // เตรียมรายละเอียดสำหรับแสดงใน Pop-up
+        const newValue = field === 'quantity' ? parseInt(value) : value;
+        const detail = `รายการ: ${oldData.productName}\nแก้ไข [${field}] จาก "${oldData[field]}" เป็น "${newValue}"`;
+
+        // เรียกใช้ Pop-up ก่อนดำเนินการ
+        showConfirmAction("แก้ไขข้อมูลการเบิก", detail, async () => {
+            try {
+                // กรณีแก้ไขจำนวน (quantity) และรายการนั้นถูก "อนุมัติแล้ว" ต้องไปปรับสต็อกสินค้าคืนหรือหักออก
+                if (field === 'quantity' && oldData.status === 'approved') {
+                    const diff = oldData.quantity - newValue; // ถ้าของเดิมมากกว่าของใหม่ = คืนสต็อก (ค่าเป็นบวก)
+                    const stockItem = stockData.find(s => s.productName === oldData.productName);
+                    
+                    if (stockItem) {
+                        const stockRef = getStockCollection().doc(stockItem.id);
+                        await stockRef.update({
+                            currentStock: stockItem.currentStock + diff,
+                            withdrawalCount: (stockItem.withdrawalCount || 0) - diff
+                        });
+                    }
+                }
+
+                // อัปเดตข้อมูลลงในรายการเบิก (Requests Collection)
+                await reqRef.update({
+                    [field]: newValue,
+                    updatedBy: currentUser.name,
+                    updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+                });
+                
+                console.log("อัปเดตข้อมูลสำเร็จ");
+            } catch (err) {
+                alert('เกิดข้อผิดพลาดขณะอัปเดต: ' + err.message);
+            }
         });
-        alert('ส่งคำขอสำเร็จ');
-        showTab('status');
-    } catch (err) { alert(err.message); }
+
+    } catch (err) {
+        alert('ไม่สามารถดึงข้อมูลเพื่อแก้ไขได้: ' + err.message);
+    }
 }
 function updateCloudUsage() {
+    // คำนวณจำนวนแถวทั้งหมดจากข้อมูลที่มีในระบบ (Requests + Stock)
     const totalLines = requestsData.length + stockData.length;
-    const limit = 1000000; 
-    let usagePercent = (totalLines / limit) * 100;
-    if (usagePercent > 100) usagePercent = 100;
-    const remainingPercent = 100 - usagePercent;
+    const limit = 100000; // ขีดจำกัด 100,000 แถวตามที่คุณต้องการ
+    const usagePercent = Math.min((totalLines / limit) * 100, 100);
     
-    const isCritical = usagePercent > 80;
-    const barColor = isCritical ? 'bg-rose-500' : 'bg-blue-400';
-    const textColor = isCritical ? 'text-rose-400' : 'text-blue-400';
+    // กำหนดสีตามระดับความหนาแน่นของข้อมูล
+    const colorClass = usagePercent > 80 ? 'bg-red-500' : 'bg-blue-500';
+    const textColorClass = usagePercent > 80 ? 'text-red-400' : 'text-blue-400';
 
     const usageHTML = `
-        <div class="mt-4 p-4 bg-slate-900 rounded-2xl shadow-xl border border-slate-700 relative">
-            <div class="flex justify-between items-center mb-3">
-                <span class="text-white font-bold text-xs flex items-center gap-2">
-                    <i class="fas fa-database text-blue-400"></i> FIRESTORE (1GB Limit)
-                </span>
-                <span class="${textColor} font-black text-[10px]">${usagePercent.toFixed(4)}%</span>
+        <div class="mt-4 p-3 bg-slate-800 rounded-lg shadow-inner border border-slate-700">
+            <div class="flex justify-between text-[10px] mb-1.5">
+                <span class="text-slate-400 font-bold tracking-tight">CLOUD STORAGE</span>
+                <span class="${textColorClass} font-bold">${usagePercent.toFixed(2)}%</span>
             </div>
-            <div class="w-full bg-slate-800 h-3 rounded-full overflow-hidden p-[2px] border border-slate-700">
-                <div class="${barColor} h-full rounded-full transition-all duration-1000" style="width: ${usagePercent}%"></div>
+            <div class="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                <div class="${colorClass} h-full transition-all duration-700 ease-out" 
+                     style="width: ${usagePercent}%"></div>
             </div>
-            <div class="mt-3 flex justify-between items-end">
-                <div>
-                    <p class="text-[10px] text-slate-500 uppercase font-bold tracking-tighter">Remaining Space</p>
-                    <p class="text-white font-black text-sm">${remainingPercent.toFixed(2)}% <span class="text-[10px] text-slate-400 font-normal">Available</span></p>
-                </div>
+            <div class="flex justify-between items-center mt-2">
+                <p class="text-[9px] text-slate-500">${totalLines.toLocaleString()} / ${limit.toLocaleString()} rows</p>
+                ${usagePercent > 90 ? '<i class="fas fa-exclamation-triangle text-red-500 text-[10px] animate-pulse"></i>' : ''}
             </div>
         </div>
     `;
     
+    // ค้นหา Sidebar Container (id="nav-menu") เพื่อแทรกแถบแจ้งเตือน
     const nav = document.getElementById('nav-menu');
     let usageBox = document.getElementById('cloud-usage-box');
+    
     if (!usageBox) {
         usageBox = document.createElement('div');
         usageBox.id = 'cloud-usage-box';
-        usageBox.className = "px-2 pb-4 mt-auto";
+        usageBox.className = "px-1"; // เพิ่ม padding เล็กน้อยให้เข้ากับปุ่มเมนู
         nav.appendChild(usageBox);
     }
     usageBox.innerHTML = usageHTML;
 }
-
 async function deleteRequestRecord(docId) {
-    if (!auth.currentUser || currentUser.role !== 'approver') return;
-    if (!confirm('ยืนยันการลบรายการประวัตินี้?')) return;
-    try {
-        await getRequestsCollection().doc(docId).delete();
-    } catch (err) {
-        alert('ไม่สามารถลบข้อมูลได้: ' + err.message);
+    // 1. ตรวจสอบสิทธิ์ซ้ำเพื่อความปลอดภัย
+    if (!auth.currentUser || currentUser.role !== 'approver') {
+        alert('คุณไม่มีสิทธิ์ลบรายการนี้');
+        return;
     }
-}
 
     // 2. ยืนยันการลบ
     if (!confirm('ยืนยันการลบรายการประวัตินี้? (การลบประวัติจะไม่คืนค่าสต็อกสินค้าโดยอัตโนมัติ)')) return;
@@ -328,6 +614,7 @@ async function deleteRequestRecord(docId) {
         console.error("Delete Error:", err);
         alert('ไม่สามารถลบข้อมูลได้: ' + err.message);
     }
+}
     </script>
 </body>
 </html>
