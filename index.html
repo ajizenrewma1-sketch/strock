@@ -193,11 +193,22 @@ function handleLogout() {
 
 function setupNav() {
     const nav = document.getElementById('nav-menu');
+    
+    // ปรับสีเมนูที่เลือก: ใช้ bg-pink-500/20 (ชมพูจางๆ) และเพิ่ม border เพื่อให้ดูนุ่มนวล
+    const getActive = (tab) => {
+        return currentTab === tab 
+            ? 'bg-pink-500/20 text-pink-300 border border-pink-500/50 shadow-none' 
+            : 'text-slate-400 hover:bg-slate-800 hover:text-pink-400';
+    };
+
+    // คำนวณการใช้งาน Cloud โดยตรงในนี้เพื่อให้แสดงผลอยู่เสมอ
+    const usage = ((requestsData.length + stockData.length) / 10000).toFixed(4);
+
     let menu = `
-        <button onclick="showTab('request')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-pink-400 transition-all">
+        <button onclick="showTab('request')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold transition-all ${getActive('request')}">
             <i class="fas fa-plus-circle text-lg"></i> แจ้งเบิกสินค้า
         </button>
-        <button onclick="showTab('status')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-pink-400 transition-all">
+        <button onclick="showTab('status')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold transition-all ${getActive('status')}">
             <i class="fas fa-list-ul text-lg"></i> รายงานสถานะ
         </button>
     `;
@@ -205,18 +216,35 @@ function setupNav() {
     if (currentUser.role === 'approver') {
         menu += `
             <div class="pt-6 pb-2 px-5 text-[10px] uppercase font-black text-slate-600 tracking-widest">ส่วนการจัดการ</div>
-            <button onclick="showTab('approve')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-pink-400 transition-all">
+            <button onclick="showTab('approve')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold transition-all ${getActive('approve')}">
                 <i class="fas fa-check-double text-lg"></i> อนุมัติเบิกสินค้า
             </button>
-            <button onclick="showTab('stock')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-pink-400 transition-all">
+            <button onclick="showTab('stock')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold transition-all ${getActive('stock')}">
                 <i class="fas fa-warehouse text-lg"></i> สินค้าคงเหลือ
             </button>
-            <button onclick="showTab('summary')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold text-slate-300 hover:bg-slate-800 hover:text-pink-400 transition-all">
+            <button onclick="showTab('summary')" class="nav-btn w-full text-left flex items-center gap-4 px-5 py-3 rounded-xl text-sm font-bold transition-all ${getActive('summary')}">
                 <i class="fas fa-chart-pie text-lg"></i> สรุปผล
             </button>
         `;
     }
+
+    // รวมกล่องแสดง Cloud Usage เข้าไปใน nav เลย
+    menu += `
+        <div class="px-4 pb-6 mt-auto">
+            <div class="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800">
+                <p class="text-[10px] text-pink-500 font-black uppercase">DATABASE USAGE: ${usage}%</p>
+            </div>
+        </div>
+    `;
+
     nav.innerHTML = menu;
+}
+
+// แก้ไข: รวมฟังก์ชัน showTab ให้เหลือจุดเดียวเพื่อจัดการเมนูและเนื้อหา
+function showTab(tabName) {
+    currentTab = tabName; // เปลี่ยนค่าตัวแปรหน้าปัจจุบัน
+    setupNav();           // วาดเมนูใหม่เพื่อให้สี Active เปลี่ยนไปตามหน้า
+    renderTab();          // แสดงเนื้อหาของหน้านั้นๆ
 }
 
 function loadInitialTab() {
@@ -244,11 +272,6 @@ function startListeners() {
             .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         if (currentTab === 'summary') renderTab();
     }, err => console.error("AddLogs Sync Error:", err));
-}
-
-function showTab(tab) {
-    currentTab = tab;
-    renderTab();
 }
 
 // --- RENDER LOGIC ---
@@ -304,71 +327,76 @@ function renderTab() {
             </div>
         `;
      } else if (currentTab === 'status') {
-        container.innerHTML = `
-            <div class="bg-white p-5 rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                <input type="text" id="filter-branch" placeholder="🔍 ค้นหาสาขา..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
-                <input type="text" id="filter-req" placeholder="🔍 ค้นหาผู้เบิก..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
-                <input type="text" id="filter-rider" placeholder="🔍 ค้นหาไรเดอร์..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
-                <select id="filter-status" class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" onchange="filterStatusTable()">
-                    <option value="">-- ทุกสถานะ --</option>
-                    <option value="pending">รออนุมัติ</option>
-                    <option value="approved">อนุมัติแล้ว</option>
-                    <option value="rejected">ปฏิเสธ</option>
-                </select>
-            </div>
+    container.innerHTML = `
+        <div class="bg-white p-5 rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+            <input type="text" id="filter-branch" placeholder="🔍 ค้นหาสาขา..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
+            <input type="text" id="filter-req" placeholder="🔍 ค้นหาผู้เบิก..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
+            <input type="text" id="filter-rider" placeholder="🔍 ค้นหาไรเดอร์..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
+            <select id="filter-status" class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" onchange="filterStatusTable()">
+                <option value="">-- ทุกสถานะ --</option>
+                <option value="pending">รออนุมัติ</option>
+                <option value="approved">อนุมัติแล้ว</option>
+                <option value="rejected">ปฏิเสธ</option>
+            </select>
+        </div>
 
-            <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
-                <table class="w-full text-left border-collapse">
-                    <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
-                        <tr>
-                            <th class="px-6 py-5">วันที่</th>
-                            <th class="px-6 py-5">สินค้า</th>
-                            <th class="px-6 py-5 text-center">จำนวน</th>
-                            <th class="px-6 py-5">ผู้เบิก/ไรเดอร์</th>
-                            <th class="px-6 py-5">รหัสร้าน/สาขา</th>
-                            <th class="px-6 py-5 text-center">สถานะ</th>
-                            ${currentUser.role === 'approver' ? '<th class="px-6 py-5 text-center">จัดการ</th>' : ''}
-                        </tr>
-                    </thead>
-                    <tbody id="status-tbody" class="divide-y divide-pink-50">
-                        ${requestsData.map(r => {
-                            const isApprover = currentUser.role === 'approver';
-                            const qtyDisplay = isApprover 
-                                ? `<input type="number" value="${r.quantity}" onchange="updateRequestField('${r.id}', 'quantity', this.value)" class="w-16 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-pink-600 outline-none focus:border-pink-400">`
-                                : `<span class="font-bold text-pink-600 text-lg">${r.quantity}</span>`;
+        <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
+            <table class="w-full text-left border-collapse">
+                <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
+                    <tr>
+                        <th class="px-6 py-5">วันที่</th>
+                        <th class="px-6 py-5">สินค้า</th>
+                        <th class="px-6 py-5 text-center">จำนวน</th>
+                        <th class="px-6 py-5">ผู้เบิก</th>
+                        <th class="px-6 py-5">ไรเดอร์</th>
+                        <th class="px-6 py-5">รหัสร้าน/สาขา</th>
+                        <th class="px-6 py-5 text-center">สถานะ</th>
+                        ${currentUser.role === 'approver' ? '<th class="px-6 py-5 text-center">จัดการ</th>' : ''}
+                    </tr>
+                </thead>
+                <tbody id="status-tbody" class="divide-y divide-pink-50">
+                    ${requestsData.map(r => {
+                        const isApprover = currentUser.role === 'approver';
+                        const qtyDisplay = isApprover 
+                            ? `<input type="number" value="${r.quantity}" onchange="updateRequestField('${r.id}', 'quantity', this.value)" class="w-16 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-pink-600 outline-none focus:border-pink-400">`
+                            : `<span class="font-bold text-pink-600 text-lg">${r.quantity}</span>`;
 
-                            const statusDisplay = isApprover
-                                // เปลี่ยนไปเรียก approveRequest เพื่อให้หักลบสต็อกอย่างถูกต้อง
-                                ? `<select onchange="approveRequest('${r.id}', this.value)" class="text-xs font-bold rounded-full px-3 py-1 outline-none cursor-pointer ${getStatusClass(r.status)}">
-                                    <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>รออนุมัติ</option>
-                                    <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>อนุมัติแล้ว</option>
-                                    <option value="rejected" ${r.status === 'rejected' ? 'selected' : ''}>ปฏิเสธ</option>
-                                   </select>`
-                                : `<span class="px-4 py-1.5 rounded-full text-xs font-bold ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span>`;
+                        const statusDisplay = isApprover
+                            ? `<select onchange="approveRequest('${r.id}', this.value)" class="text-xs font-bold rounded-full px-3 py-1 outline-none cursor-pointer ${getStatusClass(r.status)}">
+                                <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>รออนุมัติ</option>
+                                <option value="approved" ${r.status === 'approved' ? 'selected' : ''}>อนุมัติแล้ว</option>
+                                <option value="rejected" ${r.status === 'rejected' ? 'selected' : ''}>ปฏิเสธ</option>
+                               </select>`
+                            : `<span class="px-4 py-1.5 rounded-full text-xs font-bold ${getStatusClass(r.status)}">${getStatusLabel(r.status)}</span>`;
 
-                            return `
-                                <tr class="hover:bg-pink-50/50 transition-all status-row group" 
-                                    data-branch="${(r.branchName || '').toLowerCase()} ${(r.storeId || '').toLowerCase()}" 
-                                    data-req="${(r.requesterName || '').toLowerCase()}" 
-                                    data-rider="${(r.riderName || '').toLowerCase()}" 
-                                    data-status="${r.status}">
-                                    <td class="px-6 py-4 text-sm font-medium text-slate-500">${r.date}</td>
-                                    <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
-                                    <td class="px-6 py-4 text-sm text-center">${qtyDisplay}</td>
-                                    <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}<br><span class="text-[10px] text-pink-400 uppercase tracking-wide">Rider: ${r.riderName}</span></td>
-                                    <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.storeId}<br><span class="text-[10px] text-pink-400 uppercase tracking-wide">สาขา: ${r.branchName || '-'}</span></td>
-                                    <td class="px-6 py-4 text-sm text-center">${statusDisplay}</td>
-                                    ${isApprover ? `
-                                        <td class="px-6 py-4 text-center">
-                                            <button onclick="deleteRequestRecord('${r.id}')" class="w-10 h-10 rounded-full text-slate-300 hover:text-slate-700 hover:bg-slate-200 transition-all inline-flex items-center justify-center">
-                                                <i class="fas fa-trash-alt text-sm"></i>
-                                            </button>
-                                        </td>` : ''}
-                                </tr>
-                            `;
-                        }).join('')}
-                    </tbody>
-                </table>
+                        return `
+                            <tr class="hover:bg-pink-50/50 transition-all status-row group" 
+                                data-branch="${(r.branchName || '').toLowerCase()} ${(r.storeId || '').toLowerCase()}" 
+                                data-req="${(r.requesterName || '').toLowerCase()}" 
+                                data-rider="${(r.riderName || '').toLowerCase()}" 
+                                data-status="${r.status}">
+                                <td class="px-6 py-4 text-sm font-medium text-slate-500">${r.date}</td>
+                                <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
+                                <td class="px-6 py-4 text-sm text-center">${qtyDisplay}</td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}</td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-900">${r.riderName || '-'}</td>
+                                <td class="px-6 py-4 text-sm font-bold text-slate-700">
+                                    ${r.storeId}
+                                    <br>
+                                    <span class="text-xs text-pink-500 font-bold uppercase tracking-wide">สาขา: ${r.branchName || '-'}</span>
+                                </td>
+                                <td class="px-6 py-4 text-sm text-center">${statusDisplay}</td>
+                                ${isApprover ? `
+                                    <td class="px-6 py-4 text-center">
+                                        <button onclick="deleteRequestRecord('${r.id}')" class="w-10 h-10 rounded-full text-slate-300 hover:text-slate-700 hover:bg-slate-200 transition-all inline-flex items-center justify-center">
+                                            <i class="fas fa-trash-alt text-sm"></i>
+                                        </button>
+                                    </td>` : ''}
+                            </tr>
+                        `;
+                    }).join('')}
+                </tbody>
+            </table>
                 ${requestsData.length === 0 ? '<div class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-folder-open text-4xl mb-3 opacity-20"></i><br>ยังไม่มีประวัติการเบิก</div>' : ''}
             </div>
         `;
@@ -461,14 +489,16 @@ function renderTab() {
             <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
                 <table class="w-full text-left border-collapse">
                     <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
-                        <tr>
-                            <th class="px-6 py-5 text-center">สถานะ</th>
-                            <th class="px-6 py-5">ชื่อสินค้า</th>
-                            <th class="px-6 py-5">จำนวนคงเหลือ</th>
-                            <th class="px-6 py-5 text-center">จุดสั่งซื้อขั้นต่ำ</th>
-                            <th class="px-6 py-5 text-center">จัดการ</th>
-                        </tr>
-                    </thead>
+    <tr>
+        <th class="px-6 py-5">วันที่</th>
+        <th class="px-6 py-5">สินค้า</th>
+        <th class="px-6 py-5 text-center">จำนวน</th>
+        <th class="px-6 py-5">ผู้เบิก</th>
+        <th class="px-6 py-5">ไรเดอร์</th> <th class="px-6 py-5">รหัสร้าน/สาขา</th>
+        <th class="px-6 py-5 text-center">สถานะ</th>
+        ${currentUser.role === 'approver' ? '<th class="px-6 py-5 text-center">จัดการ</th>' : ''}
+    </tr>
+</thead>
                     <tbody class="divide-y divide-pink-50">
                         ${stockData.map(s => `
                             <tr class="hover:bg-pink-50/50 transition-all group">
@@ -901,15 +931,6 @@ function filterStatusTable() {
 
 function getStatusClass(status) { return status === 'approved' ? 'bg-pink-500 text-white border-none' : status === 'rejected' ? 'bg-slate-800 text-white border-none' : 'bg-white text-slate-600 border-2 border-slate-200'; }
 function getStatusLabel(status) { return status === 'approved' ? 'อนุมัติแล้ว' : status === 'rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'; }
-
-function updateCloudUsage() {
-    if (!currentUser || currentUser.role === 'requester') return;
-    const usageBox = document.getElementById('cloud-usage-box') || document.createElement('div');
-    usageBox.id = 'cloud-usage-box'; usageBox.className = "px-4 pb-6 mt-auto";
-    const usage = ((requestsData.length + stockData.length) / 10000).toFixed(4);
-    usageBox.innerHTML = `<div class="mt-6 p-4 bg-slate-950 rounded-xl border border-slate-800"><p class="text-[10px] text-pink-500 font-black uppercase">DATABASE USAGE: ${usage}%</p></div>`;
-    document.getElementById('nav-menu').appendChild(usageBox);
-}
 
 async function deleteRequestRecord(docId) { if (await KuromiConfirm("ลบประวัตินี้?")) await getRequestsCollection().doc(docId).delete(); }
     </script>
