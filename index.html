@@ -257,14 +257,14 @@ function startListeners() {
     unsubStock = getStockCollection().onSnapshot(snap => {
         stockData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}));
         if (currentTab === 'stock' || currentTab === 'request') renderTab();
-        updateCloudUsage(); 
+        // ลบ updateCloudUsage(); ออกไปครับ
     }, err => console.error("Stock Sync Error:", err));
 
     unsubRequests = getRequestsCollection().onSnapshot(snap => {
         requestsData = snap.docs.map(doc => ({id: doc.id, ...doc.data()}))
             .sort((a,b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
         if (currentTab === 'status' || currentTab === 'approve' || currentTab === 'summary') renderTab();
-        updateCloudUsage(); 
+        // ลบ updateCloudUsage(); ออกไปครับ
     }, err => console.error("Requests Sync Error:", err));
 
     unsubAddLogs = getAddLogsCollection().onSnapshot(snap => {
@@ -479,7 +479,7 @@ function renderTab() {
                     </div>
                     <div class="md:col-span-3">
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">จุดสั่งซื้อขั้นต่ำ</label>
-                        <input type="number" id="new-prod-min" class="w-full px-5 py-4 border-2 border-slate-100 rounded-xl" placeholder="ระบุจุดวิกฤต" required>
+                        <input type="number" id="new-prod-min" class="w-full px-5 py-4 border-2 border-slate-100 rounded-xl" placeholder="ระบุจุดวิกฤต">
                     </div>
                 </div>
                 <button type="submit" class="w-full bg-slate-800 text-white rounded-xl py-4 font-black">บันทึกสินค้า</button>
@@ -733,14 +733,36 @@ async function handleAddNewProduct(e) {
     e.preventDefault();
     if (!auth.currentUser || currentUser.role !== 'approver') return;
 
-    let name = document.getElementById('new-prod-name').value;
-    if (name === 'อื่นๆ') name = document.getElementById('new-prod-custom').value;
-    const stockToAdd = parseInt(document.getElementById('new-prod-stock').value);
-    const min = parseInt(document.getElementById('new-prod-min').value);
-    const price = parseFloat(document.getElementById('new-prod-price').value) || 0; // เพิ่มรับค่าราคา
-    const addedBy = document.getElementById('new-prod-added-by').value || 'ไม่ระบุ';
+    const nameInput = document.getElementById('new-prod-name');
+    const stockInput = document.getElementById('new-prod-stock');
+    const minInput = document.getElementById('new-prod-min');
+    const priceInput = document.getElementById('new-prod-price');
+    const customInput = document.getElementById('new-prod-custom');
+    
+    // 1. ตรวจสอบเงื่อนไขชื่อสินค้า
+    let name = nameInput.value;
+    const isOther = (name === 'อื่นๆ');
+    if (isOther) {
+        name = customInput ? customInput.value : 'สินค้าไม่ระบุชื่อ';
+    }
 
-    if (!(await KuromiConfirm(`ยืนยันการเพิ่มสินค้าเข้าระบบ?\n\nรายการ: ${name}\nจำนวน: ${stockToAdd}\nราคาต่อหน่วย: ${price} บาท\nผู้เพิ่ม: ${addedBy}`))) return;
+    const stockToAdd = parseInt(stockInput.value);
+    const price = parseFloat(priceInput.value) || 0;
+    
+    // 2. ตรวจสอบจุดสั่งซื้อขั้นต่ำ
+    let min = parseInt(minInput.value);
+    
+    // ถ้าไม่ใช่ "อื่นๆ" และไม่มีการระบุค่า หรือค่าไม่ใช่ตัวเลข ให้แจ้งเตือน
+    if (!isOther && (isNaN(min) || minInput.value === '')) {
+        await KuromiAlert('กรุณาระบุจุดสั่งซื้อขั้นต่ำสำหรับสินค้าทั่วไป');
+        return;
+    }
+    // ถ้าเป็น "อื่นๆ" และไม่ได้ระบุค่า ให้กำหนดเป็น 0
+    if (isNaN(min)) min = 0;
+
+    const addedBy = currentUser.name || 'Admin';
+
+    if (!(await KuromiConfirm(`ยืนยันการเพิ่มสินค้า?\n\nรายการ: ${name}\nจำนวน: ${stockToAdd}\nราคา: ${price}\nจุดสั่งซื้อ: ${min}\nผู้เพิ่ม: ${addedBy}`))) return;
 
     try {
         const existingProduct = stockData.find(s => s.productName === name);
@@ -748,7 +770,7 @@ async function handleAddNewProduct(e) {
         if (existingProduct) {
             await getStockCollection().doc(existingProduct.id).update({
                 currentStock: firebase.firestore.FieldValue.increment(stockToAdd),
-                price: price, // อัปเดตราคาสินค้า
+                price: price,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         } else {
@@ -756,12 +778,12 @@ async function handleAddNewProduct(e) {
                 productName: name,
                 currentStock: stockToAdd,
                 minStock: min,
-                price: price, // บันทึกราคา
+                price: price,
                 withdrawalCount: 0,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         }
-
+        
         await getAddLogsCollection().add({
             date: new Date().toISOString().split('T')[0],
             productName: name,
@@ -771,9 +793,12 @@ async function handleAddNewProduct(e) {
         });
 
         e.target.reset();
-        document.getElementById('new-prod-custom').classList.add('hidden');
+        if (customInput) customInput.classList.add('hidden');
+        
         await KuromiAlert('ดำเนินการเรียบร้อยแล้ว');
-    } catch (err) { await KuromiAlert('เกิดข้อผิดพลาด: ' + err.message); }
+    } catch (err) { 
+        await KuromiAlert('เกิดข้อผิดพลาด: ' + err.message); 
+    }
 }
 
 async function handleRequestSubmit(e) {
@@ -877,10 +902,17 @@ async function updateRequestField(reqId, field, value) {
 }
 
 function toggleCustomProductInput() {
-    const select = document.getElementById('new-prod-name');
+    const nameSelect = document.getElementById('new-prod-name');
     const customInput = document.getElementById('new-prod-custom');
-    if (select.value === 'อื่นๆ') { customInput.classList.remove('hidden'); customInput.required = true; } 
-    else { customInput.classList.add('hidden'); customInput.required = false; }
+    const minInput = document.getElementById('new-prod-min');
+
+    if (nameSelect.value === 'อื่นๆ') {
+        customInput.classList.remove('hidden');
+        minInput.removeAttribute('required'); // ไม่บังคับใส่
+    } else {
+        customInput.classList.add('hidden');
+        minInput.setAttribute('required', 'required'); // บังคับใส่
+    }
 }
 
 async function handleEditStock(docId, name, currentQty, currentMin, currentPrice) {
