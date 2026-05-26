@@ -296,11 +296,37 @@ function renderTab() {
                             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">เลือกสินค้า</label>
                             <select id="req-product" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" required>
     <option value="">-- เลือกสินค้า --</option>
-    ${stockData.map(s => `
-        <option value="${s.productName}" ${s.currentStock <= 0 ? 'disabled' : ''}>
-            ${s.productName} (คงเหลือ: ${s.currentStock}, ราคา: ${s.price || 0} บาท)
-        </option>
-    `).join('')}
+    ${(() => {
+        // 1. กำหนดลำดับชื่อสินค้าแบบเดียวกับหน้าสินค้าคงเหลือ
+        const order = [
+            "Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", 
+            "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"
+        ];
+        
+        // 2. กรองเฉพาะสินค้าที่มีสต็อก > 0 และทำการคัดลอกมาเรียงลำดับ (Sort)
+        return [...stockData]
+            .filter(s => s.currentStock > 0)
+            .sort((a, b) => {
+                const nameA = (a.productName || "").trim();
+                const nameB = (b.productName || "").trim();
+                
+                let indexA = order.indexOf(nameA);
+                let indexB = order.indexOf(nameB);
+                
+                if (indexA === -1) indexA = 999;
+                if (indexB === -1) indexB = 999;
+                
+                if (indexA !== indexB) {
+                    return indexA - indexB;
+                }
+                return nameA.localeCompare(nameB, 'th');
+            })
+            .map(s => `
+                <option value="${s.productName}">
+                    ${s.productName} (คงเหลือ: ${s.currentStock}, ราคา: ${s.price || 0} บาท)
+                </option>
+            `).join('');
+    })()}
 </select>
                         </div>
                         <div>
@@ -317,11 +343,11 @@ function renderTab() {
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">รหัสร้าน</label>
-                            <input type="text" id="req-store" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" required placeholder="เช่น 2863">
+                            <input type="text" id="req-store" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" placeholder="เช่น 2863">
                         </div>
                         <div class="md:col-span-2">
                             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อสาขา</label>
-                            <input type="text" id="req-branch" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" required placeholder="เช่น เพชรเกษม 51">
+                            <input type="text" id="req-branch" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" placeholder="เช่น เพชรเกษม 51">
                         </div>
                     </div>
                     <button type="submit" class="w-full mt-6 bg-pink-500 text-white py-4 rounded-xl font-black text-lg shadow-xl shadow-pink-200 hover:bg-pink-600 transition-all transform active:scale-95 flex justify-center items-center gap-2">
@@ -500,23 +526,49 @@ function renderTab() {
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-pink-50">
-                    ${stockData.map(s => {
-                        const price = s.price || 0;
-                        const total = s.currentStock * price;
-                        return `
-                        <tr class="hover:bg-pink-50/50">
-                            <td class="px-6 py-5 text-center"><div class="w-3 h-3 rounded-full mx-auto ${s.currentStock <= s.minStock ? 'bg-slate-700 animate-pulse' : 'bg-pink-400'}"></div></td>
-                            <td class="px-6 py-5 font-black text-slate-800">${s.productName}</td>
-                            <td class="px-6 py-5 font-black text-pink-600 text-center">${s.currentStock}</td>
-                            <td class="px-6 py-5 text-center font-bold">${s.minStock}</td>
-                            <td class="px-6 py-5 text-center font-bold">${price.toLocaleString()}</td>
-                            <td class="px-6 py-5 text-center font-black text-slate-800">${total.toLocaleString()}</td>
-                            <td class="px-6 py-5 text-center">
-                                <button onclick="handleEditStock('${s.id}', '${s.productName}', ${s.currentStock}, ${s.minStock}, ${price})" class="text-pink-400 hover:bg-pink-100 p-2 rounded-full"><i class="fas fa-edit"></i></button>
-                                <button onclick="handleDeleteProduct('${s.id}', '${s.productName}')" class="text-slate-300 hover:bg-slate-100 p-2 rounded-full"><i class="fas fa-trash-alt"></i></button>
-                            </td>
-                        </tr>`;
-                    }).join('')}
+                    ${(() => {
+    // 1. กำหนดลำดับชื่อสินค้าที่ต้องการให้เรียงจากบนลงล่าง
+    const order = [
+        "Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", 
+        "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"
+    ];
+    
+    // 2. สั่งเรียงลำดับ (Sort) ข้อมูลก่อน
+    return [...stockData].sort((a, b) => {
+        const nameA = (a.productName || "").trim();
+        const nameB = (b.productName || "").trim();
+        
+        let indexA = order.indexOf(nameA);
+        let indexB = order.indexOf(nameB);
+        
+        // ถ้าไม่เจอในรายการ (เช่น พิมพ์ระบุเอง) ให้เอาไปไว้ท้ายสุด
+        if (indexA === -1) indexA = 999;
+        if (indexB === -1) indexB = 999;
+        
+        if (indexA !== indexB) {
+            return indexA - indexB;
+        }
+        // กรณีพิมพ์ชื่อเองเหมือนกัน ให้เรียงตามตัวอักษร ก-ฮ / A-Z
+        return nameA.localeCompare(nameB, 'th');
+    }).map(s => {
+        // 3. นำข้อมูลที่เรียงแล้วมาเข้าสู่กระบวนการแสดงผลเดิมของคุณ
+        const price = s.price || 0;
+        const total = s.currentStock * price;
+        return `
+        <tr class="hover:bg-pink-50/50">
+            <td class="px-6 py-5 text-center"><div class="w-3 h-3 rounded-full mx-auto ${s.currentStock <= s.minStock ? 'bg-slate-700 animate-pulse' : 'bg-pink-400'}"></div></td>
+            <td class="px-6 py-5 font-black text-slate-800">${s.productName}</td>
+            <td class="px-6 py-5 font-black text-pink-600 text-center">${s.currentStock}</td>
+            <td class="px-6 py-5 text-center font-bold">${s.minStock}</td>
+            <td class="px-6 py-5 text-center font-bold">${price.toLocaleString()}</td>
+            <td class="px-6 py-5 text-center font-black text-slate-800">${total.toLocaleString()}</td>
+            <td class="px-6 py-5 text-center">
+                <button onclick="handleEditStock('${s.id}', '${s.productName}', ${s.currentStock}, ${s.minStock}, ${price})" class="text-pink-400 hover:bg-pink-100 p-2 rounded-full"><i class="fas fa-edit"></i></button>
+                <button onclick="handleDeleteProduct('${s.id}', '${s.productName}')" class="text-slate-300 hover:bg-slate-100 p-2 rounded-full"><i class="fas fa-trash-alt"></i></button>
+            </td>
+        </tr>`;
+    }).join('');
+})()}
                 </tbody>
             </table>
         </div>
@@ -803,71 +855,52 @@ async function handleAddNewProduct(e) {
 
 async function handleRequestSubmit(e) {
     e.preventDefault();
+    
+    // ดึงค่า Input
     const productName = document.getElementById('req-product').value;
+    const storeId = document.getElementById('req-store').value.trim();
+    const branchName = document.getElementById('req-branch').value.trim();
+    
+    // DEBUG: ตรวจสอบค่าที่อ่านได้
+    console.log("ชื่อสินค้าที่เลือก:", productName);
+    console.log("มีคำว่ากระเป๋าหรือไม่:", productName.includes('กระเป๋า'));
+
+    // ตรวจสอบเงื่อนไขการบังคับกรอก (เฉพาะรายการที่มีคำว่า "กระเป๋า")
+    if (productName.includes('กระเป๋า')) {
+        if (!storeId || !branchName) {
+            await KuromiAlert('กรุณากรอกรหัสร้านและชื่อสาขาสำหรับรายการกระเป๋า');
+            return; // หยุดการทำงานถ้าไม่กรอก
+        }
+    }
+
+    // ถ้าไม่ใช่กระเป๋า หรือกระเป๋าที่กรอกครบแล้ว ให้ทำงานต่อ...
     const quantity = parseInt(document.getElementById('req-qty').value);
     const requesterName = document.getElementById('req-name').value; 
     const date = document.getElementById('req-date').value;
     const product = stockData.find(s => s.productName === productName);
 
-    if (!product || product.currentStock < quantity) return await KuromiAlert(`สินค้าไม่เพียงพอ! เหลือเพียง ${product ? product.currentStock : 0} ชิ้น`);
+    if (!product || product.currentStock < quantity) {
+        return await KuromiAlert(`สินค้าไม่เพียงพอ! เหลือเพียง ${product ? product.currentStock : 0} ชิ้น`);
+    }
+
     if (!(await KuromiConfirm(`ยืนยันการแจ้งเบิก?\n\nรายการ: ${productName}\nจำนวน: ${quantity}`))) return;
 
     try {
         await getRequestsCollection().add({
-            date, productName, quantity, requesterName, 
+            date, 
+            productName, 
+            quantity, 
+            requesterName, 
             riderName: document.getElementById('req-rider').value,
-            storeId: document.getElementById('req-store').value,
-            branchName: document.getElementById('req-branch').value, 
+            storeId: storeId,
+            branchName: branchName,
             status: 'pending',
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await KuromiAlert('ส่งคำขอเบิกแล้ว');
         showTab('status');
-    } catch (err) { await KuromiAlert('ไม่สำเร็จ: ' + err.message); }
-}
-
-// อัปเดตตรรกะการอนุมัติให้รองรับทุกการเปลี่ยนสถานะแบบสมบูรณ์และป้องกัน Race Condition
-async function approveRequest(reqId, newStatus) {
-    const reqRef = getRequestsCollection().doc(reqId);
-    const snap = await reqRef.get();
-    const data = snap.data();
-    const stockItem = stockData.find(s => s.productName === data.productName);
-
-    if (newStatus === data.status) return;
-
-    if (newStatus === 'approved' && (!stockItem || stockItem.currentStock < data.quantity)) {
-        await KuromiAlert('สต็อกไม่เพียงพออนุมัติ');
-        renderTab();
-        return;
-    }
-    if (!(await KuromiConfirm(`ยืนยันการดำเนินการเปลี่ยนสถานะเป็น "${getStatusLabel(newStatus)}"?`))) { 
-        renderTab(); 
-        return; 
-    }
-
-    try {
-        if (stockItem) {
-            const stockRef = getStockCollection().doc(stockItem.id);
-            // ถ้าอนุมัติ (หักสต็อก)
-            if (newStatus === 'approved' && data.status !== 'approved') {
-                await stockRef.update({ 
-                    currentStock: firebase.firestore.FieldValue.increment(-data.quantity), 
-                    withdrawalCount: firebase.firestore.FieldValue.increment(data.quantity) 
-                });
-            } 
-            // ถ้ายกเลิกการอนุมัติ (คืนสต็อก)
-            else if (data.status === 'approved' && newStatus !== 'approved') {
-                await stockRef.update({ 
-                    currentStock: firebase.firestore.FieldValue.increment(data.quantity), 
-                    withdrawalCount: firebase.firestore.FieldValue.increment(-data.quantity) 
-                });
-            }
-        }
-        await reqRef.update({ status: newStatus, respondedAt: firebase.firestore.FieldValue.serverTimestamp() });
-        await KuromiAlert('ดำเนินการแล้ว');
     } catch (err) { 
         await KuromiAlert('ไม่สำเร็จ: ' + err.message); 
-        renderTab();
     }
 }
 
