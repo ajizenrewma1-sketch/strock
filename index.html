@@ -274,6 +274,13 @@ function startListeners() {
     }, err => console.error("AddLogs Sync Error:", err));
 }
 
+// ฟังก์ชันคำนวณจำนวนที่ถูกจอง (สถานะ pending)
+function getReservedQuantity(productName) {
+    return requestsData
+        .filter(r => r.status === 'pending' && r.productName === productName)
+        .reduce((sum, r) => sum + (parseInt(r.quantity) || 0), 0);
+}
+
 // --- RENDER LOGIC ---
 function renderTab() {
     const container = document.getElementById('content-area');
@@ -297,33 +304,27 @@ function renderTab() {
                             <select id="req-product" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" required>
     <option value="">-- เลือกสินค้า --</option>
     ${(() => {
-        // 1. กำหนดลำดับชื่อสินค้าแบบเดียวกับหน้าสินค้าคงเหลือ
-        const order = [
-            "Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", 
-            "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"
-        ];
+        const order = ["Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"];
         
-        // 2. กรองเฉพาะสินค้าที่มีสต็อก > 0 และทำการคัดลอกมาเรียงลำดับ (Sort)
         return [...stockData]
-            .filter(s => s.currentStock > 0)
+            .map(s => {
+                const reserved = getReservedQuantity(s.productName);
+                const available = s.currentStock - reserved;
+                return { ...s, available };
+            })
+            .filter(s => s.available > 0) // กรองเฉพาะที่มีของเหลือให้เบิกจริงๆ
             .sort((a, b) => {
                 const nameA = (a.productName || "").trim();
                 const nameB = (b.productName || "").trim();
-                
                 let indexA = order.indexOf(nameA);
                 let indexB = order.indexOf(nameB);
-                
                 if (indexA === -1) indexA = 999;
                 if (indexB === -1) indexB = 999;
-                
-                if (indexA !== indexB) {
-                    return indexA - indexB;
-                }
-                return nameA.localeCompare(nameB, 'th');
+                return indexA !== indexB ? indexA - indexB : nameA.localeCompare(nameB, 'th');
             })
             .map(s => `
                 <option value="${s.productName}">
-                    ${s.productName} (คงเหลือ: ${s.currentStock}, ราคา: ${s.price || 0} บาท)
+                    ${s.productName} (คงเหลือ: ${s.available}, ราคา: ${s.price || 0} บาท)
                 </option>
             `).join('');
     })()}
@@ -967,24 +968,14 @@ async function handleEditStock(docId, name, currentQty, currentMin, currentPrice
 }
 
 async function handleDeleteProduct(docId, name) {
-    if (await KuromiConfirm(`ลบ ${name} หรือไม่?\n\nคำเตือน: ประวัติการเบิกและการเคลื่อนไหวทั้งหมดของสินค้าชิ้นนี้จะถูกลบออกด้วย`)) {
+    // 1. อัปเดตข้อความแจ้งเตือนให้ชัดเจนว่า ประวัติจะไม่ถูกลบ
+    if (await KuromiConfirm(`ต้องการลบ ${name} ออกจากรายการสินค้าคงเหลือใช่หรือไม่?\n\n(หมายเหตุ: ประวัติการเบิกและการเคลื่อนไหวทั้งหมดจะยังคงอยู่ ไม่ถูกลบ)`)) {
         try {
-            const batch = db.batch();
-            
-            batch.delete(getStockCollection().doc(docId));
+            // 2. ไม่ต้องใช้ batch แล้ว ให้ลบแค่ doc ของสินค้าชิ้นนั้นโดยตรง
+            await getStockCollection().doc(docId).delete();
 
-            const requestsQuery = await getRequestsCollection().where('productName', '==', name).get();
-            requestsQuery.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-
-            const additionsQuery = await getAddLogsCollection().where('productName', '==', name).get();
-            additionsQuery.forEach(doc => {
-                batch.delete(doc.ref);
-            });
-
-            await batch.commit();
-            await KuromiAlert("ลบสินค้าและประวัติการเคลื่อนไหวที่เกี่ยวข้องเรียบร้อยแล้ว\n(สถานะ: ลบรายการจากหน้าสินค้าคงเหลือ)");
+            // 3. แสดงผลความสำเร็จ
+            await KuromiAlert("ลบสินค้าเรียบร้อยแล้ว\n(ประวัติการเบิกและข้อมูลเดิมยังคงอยู่ครบถ้วน)");
         } catch (err) {
             await KuromiAlert("เกิดข้อผิดพลาดในการลบข้อมูล: " + err.message);
         }
