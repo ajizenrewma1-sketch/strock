@@ -1005,6 +1005,63 @@ function filterStatusTable() {
 function getStatusClass(status) { return status === 'approved' ? 'bg-pink-500 text-white border-none' : status === 'rejected' ? 'bg-slate-800 text-white border-none' : 'bg-white text-slate-600 border-2 border-slate-200'; }
 function getStatusLabel(status) { return status === 'approved' ? 'อนุมัติแล้ว' : status === 'rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'; }
 
+// ======= เพิ่มฟังก์ชันนี้เข้าไปครับ =======
+async function approveRequest(reqId, newStatus) {
+    if (currentUser.role !== 'approver') return;
+    
+    const label = newStatus === 'approved' ? 'อนุมัติ' : 'ปฏิเสธ';
+    if (!(await KuromiConfirm(`คุณแน่ใจหรือไม่ว่าต้องการ ${label} รายการนี้?`))) {
+        renderTab();
+        return;
+    }
+
+    try {
+        const reqRef = getRequestsCollection().doc(reqId);
+        const snap = await reqRef.get();
+        const reqData = snap.data();
+
+        if (!reqData) return;
+
+        // ถ้าสถานะเดิมได้รับการอนุมัติอยู่แล้ว และจะเปลี่ยนสถานะ
+        if (reqData.status === 'approved' && newStatus !== 'approved') {
+            // คืนค่าสต็อกกลับไปที่สินค้าคงเหลือ และลดยอดเบิกสะสมลง
+            const product = stockData.find(s => s.productName === reqData.productName);
+            if (product) {
+                await getStockCollection().doc(product.id).update({
+                    currentStock: firebase.firestore.FieldValue.increment(reqData.quantity),
+                    withdrawalCount: firebase.firestore.FieldValue.increment(-reqData.quantity)
+                });
+            }
+        } 
+        // ถ้าสถานะใหม่คือ อนุมัติ และเดิมยังไม่อนุมัติ
+        else if (newStatus === 'approved' && reqData.status !== 'approved') {
+            const product = stockData.find(s => s.productName === reqData.productName);
+            if (!product || product.currentStock < reqData.quantity) {
+                await KuromiAlert(`ไม่สามารถอนุมัติได้เนื่องจากสินค้าคงเหลือในระบบมีไม่เพียงพอ`);
+                renderTab();
+                return;
+            }
+            // หักสต็อกสินค้าคงเหลือ และเพิ่มยอดเบิกสะสม
+            await getStockCollection().doc(product.id).update({
+                currentStock: firebase.firestore.FieldValue.increment(-reqData.quantity),
+                withdrawalCount: firebase.firestore.FieldValue.increment(reqData.quantity)
+            });
+        }
+
+        // อัปเดตสถานะในรายการคำขอเบิกสินค้า
+        await reqRef.update({
+            status: newStatus,
+            approvedBy: currentUser.name,
+            approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+
+        await KuromiAlert(`ดำเนินการ ${label} เรียบร้อยแล้ว`);
+    } catch (err) {
+        await KuromiAlert("เกิดข้อผิดพลาด: " + err.message);
+        renderTab();
+    }
+}
+
 async function deleteRequestRecord(docId) { if (await KuromiConfirm("ลบประวัตินี้?")) await getRequestsCollection().doc(docId).delete(); }
     </script>
 </body>
