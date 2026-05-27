@@ -62,7 +62,7 @@
         </aside>
 
         <main class="flex-1 p-4 md:p-8 overflow-y-auto relative">
-            <div id="content-area" class="max-w-6xl mx-auto"></div>
+            <div id="content-area" class="w-full"></div>
         </main>
     </div>
 
@@ -162,6 +162,23 @@ const PURCHASE_COSTS = {
     "เครื่องปริ๊น COD": 1950,
     "ซองใส่บัตร": 0
 };
+
+// ตัวแปรควบคุมการค้นหาและการแก้ไขแบบ Inline
+let editingRequestId = null;
+let editingPurchaseId = null;
+let searchRequestsKeyword = '';
+let searchPurchasesKeyword = '';
+
+// ฟังก์ชันสำหรับแปลงรูปแบบวันที่เป็น DD/MM/YYYY
+function formatDateDDMMYYYY(timestamp) {
+    if (!timestamp) return '-';
+    const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+    if (isNaN(date.getTime())) return '-';
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear(); // ปี ค.ศ.
+    return `${day}/${month}/${year}`;
+}
 
 function formatDateToDDMMYYYY(dateStr) {
     if (!dateStr) return '-';
@@ -417,8 +434,8 @@ function renderTab() {
                         ${currentUser.role === 'approver' ? '<th class="px-6 py-5 text-center">จัดการ</th>' : ''}
                     </tr>
                 </thead>
-                <tbody id="status-tbody" class="divide-y divide-pink-50">
-                    ${requestsData.map(r => {
+                <<tbody id="status-tbody" class="divide-y divide-pink-50">
+    ${requestsData.slice().sort((a, b) => new Date(b.date) - new Date(a.date)).map(r => {
                         const isApprover = currentUser.role === 'approver';
                         const qtyDisplay = isApprover 
                             ? `<input type="number" value="${r.quantity}" onchange="updateRequestField('${r.id}', 'quantity', this.value)" class="w-16 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-pink-600 outline-none focus:border-pink-400">`
@@ -438,7 +455,7 @@ function renderTab() {
                                 data-req="${(r.requesterName || '').toLowerCase()}" 
                                 data-rider="${(r.riderName || '').toLowerCase()}" 
                                 data-status="${r.status}">
-                                <td class="px-6 py-4 text-sm font-medium text-slate-500">${r.date}</td>
+                                <td class="px-6 py-4 text-sm font-medium text-slate-500">${formatDateToDDMMYYYY(r.date)}</td>
                                 <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
                                 <td class="px-6 py-4 text-sm text-center">${qtyDisplay}</td>
                                 <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}</td>
@@ -699,12 +716,16 @@ function renderTab() {
             </div>
         `;
    } else if (currentTab === 'sale_trans') {
-        const approvedRequests = requestsData.filter(r => r.status === 'approved');
+        // 1.4 เรียงวันที่จากปัจจุบันไปอดีต
+        const approvedRequests = requestsData.filter(r => r.status === 'approved').sort((a,b) => new Date(b.date) - new Date(a.date));
         
         container.innerHTML = `
-            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3">
-                <i class="fas fa-file-invoice-dollar text-pink-500"></i> Transaction ขาย (อนุมัติแล้ว)
-            </h2>
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h2 class="text-2xl font-black text-slate-800 flex items-center gap-3">
+                    <i class="fas fa-file-invoice-dollar text-pink-500"></i> Transaction ขาย (อนุมัติแล้ว)
+                </h2>
+                <input type="text" id="search-sale" placeholder="🔍 ค้นหา ชื่อผู้เบิก, ไรเดอร์, รหัสร้าน/สาขา..." class="px-5 py-3 border-2 border-slate-100 rounded-xl outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 w-full md:w-80" oninput="filterSaleTable()">
+            </div>
             <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-max">
@@ -716,33 +737,70 @@ function renderTab() {
                                 <th class="px-6 py-5">ผู้เบิก</th>
                                 <th class="px-6 py-5">ไรเดอร์</th>
                                 <th class="px-6 py-5">รหัสร้าน/สาขา</th>
+                                <th class="px-6 py-5 text-center">ราคาขายรวม</th>
                                 <th class="px-6 py-5 text-center">ค่าส่ง</th>
                                 <th class="px-6 py-5 text-center">ค่าตรวจประวัติ</th>
+				<th class="px-6 py-5 text-center">ยอดรวมสุทธิ</th>
                                 <th class="px-6 py-5 text-center">จัดการ</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-pink-50">
-                            ${approvedRequests.map(r => `
-                                <tr class="hover:bg-pink-50/50 transition-all">
-                                    <td class="px-6 py-4 text-sm font-medium text-slate-500">${formatDateToDDMMYYYY(r.date)}</td>
-                                    <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
-                                    <td class="px-6 py-4 text-sm font-bold text-pink-600 text-center">${r.quantity}</td>
-                                    <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}</td>
-                                    <td class="px-6 py-4 text-sm font-bold text-slate-900">${r.riderName || '-'}</td>
-                                    <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.storeId}<br><span class="text-xs text-pink-500 font-bold uppercase">สาขา: ${r.branchName || '-'}</span></td>
-                                    <td class="px-6 py-4 text-center">
-                                        <input type="number" value="${r.deliveryFee || 0}" onchange="updateTransactionFee('${r.id}', 'deliveryFee', this.value)" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">
-                                    </td>
-                                    <td class="px-6 py-4 text-center">
-                                        <input type="number" value="${r.bgCheckFee || 0}" onchange="updateTransactionFee('${r.id}', 'bgCheckFee', this.value)" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">
-                                    </td>
-                                    <td class="px-6 py-4 text-center">
-                                        <button onclick="deleteRequestRecord('${r.id}')" class="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-rose-500 transition-all inline-flex items-center justify-center" title="ลบข้อมูล">
-                                            <i class="fas fa-trash-alt text-xs"></i>
-                                        </button>
-                                    </td>
-                                </tr>
-                            `).join('')}
+                            ${approvedRequests.map(r => {
+                                const isEditing = editingRequestId === r.id;
+                                // คำนวณราคาขาย (ราคาต่อชิ้น * จำนวน)
+                                // คำนวณราคาขาย (ราคาต่อชิ้น * จำนวน)
+				const salePrice = (r.productPrice || 0) * r.quantity;
+
+				// ดึงค่าขนส่งและค่าตรวจประวัติมาแปลงเป็นตัวเลขเพื่อคำนวณ
+				const deliveryFee = parseFloat(r.deliveryFee) || 0;
+				const bgCheckFee = parseFloat(r.bgCheckFee) || 0;
+
+				// คำนวณยอดรวมสุทธิ
+				const netTotal = salePrice + deliveryFee + bgCheckFee;
+                                
+                                return `
+                                    <tr class="hover:bg-pink-50/50 transition-all sale-row">
+                                        <td class="px-6 py-4 text-sm font-medium text-slate-500">${formatDateToDDMMYYYY(r.date)}</td>
+                                        <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
+                                        <td class="px-6 py-4 text-sm font-bold text-pink-600 text-center">${r.quantity}</td>
+                                        <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}</td>
+                                        
+                                        <td class="px-6 py-4 text-sm font-bold text-slate-900">
+                                            ${isEditing ? `<input type="text" id="edit-sale-rider-${r.id}" value="${r.riderName || ''}" class="w-24 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.riderName || '-')}
+                                        </td>
+                                        
+                                        <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.storeId}<br><span class="text-xs text-pink-500 font-bold uppercase">สาขา: ${r.branchName || '-'}</span></td>
+                                        
+                                        <td class="px-6 py-4 text-sm font-black text-green-600 text-center">${salePrice.toLocaleString()}</td>
+
+<td class="px-6 py-4 text-center">
+    ${isEditing ? `<input type="number" id="edit-sale-delivery-${r.id}" value="${r.deliveryFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.deliveryFee || 0)}
+</td>
+<td class="px-6 py-4 text-center">
+    ${isEditing ? `<input type="number" id="edit-sale-bg-${r.id}" value="${r.bgCheckFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.bgCheckFee || 0)}
+</td>
+<td class="px-6 py-4 text-sm font-black text-pink-600 text-center">${netTotal.toLocaleString()}</td>
+
+<td class="px-6 py-4 text-center flex items-center justify-center gap-2">
+                                            ${isEditing ? `
+                                                <button onclick="saveEditSale('${r.id}')" class="w-8 h-8 rounded-full text-white bg-green-500 hover:bg-green-600 transition-all inline-flex items-center justify-center" title="บันทึก">
+                                                    <i class="fas fa-save text-xs"></i>
+                                                </button>
+                                                <button onclick="editingRequestId = null; renderTab();" class="w-8 h-8 rounded-full text-white bg-slate-400 hover:bg-slate-500 transition-all inline-flex items-center justify-center" title="ยกเลิก">
+                                                    <i class="fas fa-times text-xs"></i>
+                                                </button>
+                                            ` : `
+                                                <button onclick="editingRequestId = '${r.id}'; renderTab();" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-blue-500 transition-all inline-flex items-center justify-center" title="แก้ไข">
+                                                    <i class="fas fa-pencil-alt text-xs"></i>
+                                                </button>
+                                                <button onclick="deleteRequestRecord('${r.id}')" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-rose-500 transition-all inline-flex items-center justify-center" title="ลบข้อมูล">
+                                                    <i class="fas fa-trash-alt text-xs"></i>
+                                                </button>
+                                            `}
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -750,10 +808,16 @@ function renderTab() {
             </div>
         `;
     } else if (currentTab === 'purchase_trans') {
+        // 2.1 เรียงวันที่จากปัจจุบันไปอดีต
+        const sortedAddLogs = addLogsData.slice().sort((a,b) => new Date(b.date) - new Date(a.date));
+
         container.innerHTML = `
-            <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3">
-                <i class="fas fa-shopping-cart text-pink-500"></i> Transaction ซื้อ (ประวัติเพิ่มสินค้า)
-            </h2>
+            <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
+                <h2 class="text-2xl font-black text-slate-800 flex items-center gap-3">
+                    <i class="fas fa-shopping-cart text-pink-500"></i> Transaction ซื้อ (ประวัติเพิ่มสินค้า)
+                </h2>
+                <input type="text" id="search-purchase" placeholder="🔍 ค้นหา ชื่อสินค้า..." class="px-5 py-3 border-2 border-slate-100 rounded-xl outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 w-full md:w-80" oninput="filterPurchaseTable()">
+            </div>
             <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-max">
@@ -764,26 +828,51 @@ function renderTab() {
                                 <th class="px-6 py-5 text-right">ราคาซื้อ/ต้นทุน (บาท)</th>
                                 <th class="px-6 py-5 text-center">จำนวนที่ซื้อ</th>
                                 <th class="px-6 py-5 text-right">ต้นทุนซื้อรวม (บาท)</th>
+                                <th class="px-6 py-5 text-center">จัดการ</th>
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-pink-50">
-                            ${addLogsData.map(log => {
+                            ${sortedAddLogs.map(log => {
+                                const isEditing = editingPurchaseId === log.id;
                                 const unitCost = PURCHASE_COSTS[log.productName] !== undefined ? PURCHASE_COSTS[log.productName] : 0;
                                 const totalCost = unitCost * log.quantity;
+                                
                                 return `
-                                    <tr class="hover:bg-pink-50/50 transition-all">
+                                    <tr class="hover:bg-pink-50/50 transition-all purchase-row" data-name="${log.productName.toLowerCase()}">
                                         <td class="px-6 py-4 text-sm font-medium text-slate-500">${formatDateToDDMMYYYY(log.date)}</td>
                                         <td class="px-6 py-4 text-sm font-black text-slate-800">${log.productName}</td>
                                         <td class="px-6 py-4 text-sm font-bold text-slate-600 text-right">${unitCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
-                                        <td class="px-6 py-4 text-sm font-black text-green-600 text-center">+${log.quantity}</td>
+                                        
+                                        <td class="px-6 py-4 text-sm font-black text-green-600 text-center">
+                                            ${isEditing ? `<input type="number" id="edit-purchase-qty-${log.id}" value="${log.quantity}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : '+' + log.quantity}
+                                        </td>
+                                        
                                         <td class="px-6 py-4 text-sm font-black text-slate-800 text-right">${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</td>
+                                        
+                                        <td class="px-6 py-4 text-center flex items-center justify-center gap-2">
+                                            ${isEditing ? `
+                                                <button onclick="saveEditPurchase('${log.id}')" class="w-8 h-8 rounded-full text-white bg-green-500 hover:bg-green-600 transition-all inline-flex items-center justify-center" title="บันทึก">
+                                                    <i class="fas fa-save text-xs"></i>
+                                                </button>
+                                                <button onclick="editingPurchaseId = null; renderTab();" class="w-8 h-8 rounded-full text-white bg-slate-400 hover:bg-slate-500 transition-all inline-flex items-center justify-center" title="ยกเลิก">
+                                                    <i class="fas fa-times text-xs"></i>
+                                                </button>
+                                            ` : `
+                                                <button onclick="editingPurchaseId = '${log.id}'; renderTab();" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-blue-500 transition-all inline-flex items-center justify-center" title="แก้ไข">
+                                                    <i class="fas fa-pencil-alt text-xs"></i>
+                                                </button>
+                                                <button onclick="deletePurchaseRecord('${log.id}')" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-rose-500 transition-all inline-flex items-center justify-center" title="ลบข้อมูล">
+                                                    <i class="fas fa-trash-alt text-xs"></i>
+                                                </button>
+                                            `}
+                                        </td>
                                     </tr>
                                 `;
                             }).join('')}
                         </tbody>
                     </table>
                 </div>
-                ${addLogsData.length === 0 ? '<div class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-folder-open text-4xl mb-3 opacity-20"></i><br>ยังไม่มีประวัติการซื้อ</div>' : ''}
+                ${sortedAddLogs.length === 0 ? '<div class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-folder-open text-4xl mb-3 opacity-20"></i><br>ยังไม่มีประวัติการซื้อ</div>' : ''}
             </div>
         `;
     }
@@ -1010,6 +1099,7 @@ async function handleRequestSubmit(e) {
         await getRequestsCollection().add({
             date, 
             productName, 
+            productPrice: product ? (product.price || 0) : 0, // 🔥 1.1 & 1.6 เพิ่มฟิลด์บันทึกราคาขายต่อชิ้น ณ ตอนเบิก
             quantity, 
             requesterName, 
             riderName: document.getElementById('req-rider').value,
@@ -1115,6 +1205,73 @@ function filterStatusTable() {
 
 function getStatusClass(status) { return status === 'approved' ? 'bg-pink-500 text-white border-none' : status === 'rejected' ? 'bg-slate-800 text-white border-none' : 'bg-white text-slate-600 border-2 border-slate-200'; }
 function getStatusLabel(status) { return status === 'approved' ? 'อนุมัติแล้ว' : status === 'rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'; }
+
+// ฟังก์ชันสำหรับการค้นหาในตาราง
+function filterSaleTable() {
+    const keyword = document.getElementById('search-sale').value.toLowerCase();
+    document.querySelectorAll('.sale-row').forEach(row => {
+        const text = row.innerText.toLowerCase();
+        row.style.display = text.includes(keyword) ? '' : 'none';
+    });
+}
+
+function filterPurchaseTable() {
+    const keyword = document.getElementById('search-purchase').value.toLowerCase();
+    document.querySelectorAll('.purchase-row').forEach(row => {
+        const text = row.dataset.name.toLowerCase();
+        row.style.display = text.includes(keyword) ? '' : 'none';
+    });
+}
+
+// ฟังก์ชันบันทึก Transaction ขาย (Inline Edit)
+async function saveEditSale(reqId) {
+    const deliveryFee = parseFloat(document.getElementById(`edit-sale-delivery-${reqId}`).value) || 0;
+    const bgCheckFee = parseFloat(document.getElementById(`edit-sale-bg-${reqId}`).value) || 0;
+    const riderName = document.getElementById(`edit-sale-rider-${reqId}`).value;
+    
+    try {
+        await getRequestsCollection().doc(reqId).update({
+            deliveryFee: deliveryFee,
+            bgCheckFee: bgCheckFee,
+            riderName: riderName,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        editingRequestId = null;
+        renderTab();
+        await KuromiAlert("บันทึกข้อมูลเรียบร้อยแล้ว");
+    } catch (err) {
+        await KuromiAlert("เกิดข้อผิดพลาด: " + err.message);
+    }
+}
+
+// ฟังก์ชันบันทึก Transaction ซื้อ (Inline Edit)
+async function saveEditPurchase(logId) {
+    const quantity = parseInt(document.getElementById(`edit-purchase-qty-${logId}`).value) || 0;
+    
+    try {
+        await getAddLogsCollection().doc(logId).update({
+            quantity: quantity,
+            updatedAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+        editingPurchaseId = null;
+        renderTab();
+        await KuromiAlert("บันทึกข้อมูลเรียบร้อยแล้ว");
+    } catch (err) {
+        await KuromiAlert("เกิดข้อผิดพลาด: " + err.message);
+    }
+}
+
+// ฟังก์ชันลบ Transaction ซื้อ
+async function deletePurchaseRecord(logId) {
+    if (await KuromiConfirm("คุณแน่ใจหรือไม่ว่าต้องการลบประวัติการซื้อนี้?")) {
+        try {
+            await getAddLogsCollection().doc(logId).delete();
+            await KuromiAlert("ลบข้อมูลเรียบร้อยแล้ว");
+        } catch (err) {
+            await KuromiAlert("เกิดข้อผิดพลาด: " + err.message);
+        }
+    }
+}
 
 // ======= เพิ่มฟังก์ชันนี้เข้าไปครับ =======
 async function approveRequest(reqId, newStatus) {
