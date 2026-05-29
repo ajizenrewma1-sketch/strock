@@ -350,7 +350,7 @@ function renderTab() {
                         </div>
                         <div>
                             <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">เลือกสินค้า</label>
-                            <select id="req-product" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" required>
+                            <select id="req-product" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 <select id="req-product" onchange="autoFillCost(this.value)" class="focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold w-full px-5 py-3 border-2 border-slate-100 rounded-xl" required>
     <option value="">-- เลือกสินค้า --</option>
     ${(() => {
         const order = ["Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"];
@@ -535,28 +535,36 @@ function renderTab() {
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ชื่อสินค้า</label>
                         <select id="new-prod-name" class="w-full px-5 py-4 border-2 border-slate-100 rounded-xl outline-none font-bold text-slate-700" onchange="toggleCustomProductInput()" required>
                             <option value="">-- เลือกรายการสินค้า --</option>
-                                <option value="Size M">Size M</option>
-                                <option value="Size L">Size L</option>
-                                <option value="Size XL">Size XL</option>
-                                <option value="Size 2XL">Size 2XL</option>
-                                <option value="Size 3XL">Size 3XL</option>
-                                <option value="Size 4XL">Size 4XL</option>
-                                <option value="Size 5XL">Size 5XL</option>
-                                <option value="สายคล้องบัตร">สายคล้องบัตร</option>
-                                <option value="กระเป๋าเก็บความเย็นใหญ่">กระเป๋าเก็บความเย็นใหญ่</option>
-                                <option value="กระเป๋าเก็บความเย็นเล็ก">กระเป๋าเก็บความเย็นเล็ก</option>
-                                <option value="อื่นๆ">อื่นๆ (ระบุเอง)</option>
-                            </select>
+                            <option value="Size M">Size M</option>
+                            <option value="Size L">Size L</option>
+                            <option value="Size XL">Size XL</option>
+                            <option value="Size 2XL">Size 2XL</option>
+                            <option value="Size 3XL">Size 3XL</option>
+                            <option value="Size 4XL">Size 4XL</option>
+                            <option value="Size 5XL">Size 5XL</option>
+                            <option value="สายคล้องบัตร">สายคล้องบัตร</option>
+                            <option value="กระเป๋าเก็บความเย็นใหญ่">กระเป๋าเก็บความเย็นใหญ่</option>
+                            <option value="กระเป๋าเก็บความเย็นเล็ก">กระเป๋าเก็บความเย็นเล็ก</option>
+                            <option value="อื่นๆ">อื่นๆ (ระบุเอง)</option>
+                        </select>
                         <input type="text" id="new-prod-custom" class="hidden mt-3 w-full px-5 py-4 border-2 border-slate-100 rounded-xl" placeholder="ระบุชื่อสินค้า">
                     </div>
+                    
                     <div>
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">จำนวนเริ่มต้น</label>
                         <input type="number" id="new-prod-stock" class="w-full px-5 py-4 border-2 border-slate-100 rounded-xl" placeholder="ระบุจำนวน" required>
                     </div>
+
                     <div>
-                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ราคาต่อชิ้น (บาท)</label>
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ราคาขาย (บาท)</label>
                         <input type="number" id="new-prod-price" class="w-full px-5 py-4 border-2 border-slate-100 rounded-xl" placeholder="ระบุราคา" required>
                     </div>
+
+                    <div id="purchase-price-container" class="hidden">
+                        <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ราคาซื้อ (ต้นทุน)</label>
+                        <input type="number" id="new-prod-purchase-price" class="w-full px-5 py-4 border-2 border-pink-100 rounded-xl" placeholder="ระบุราคาต้นทุน">
+                    </div>
+
                     <div class="md:col-span-3">
                         <label class="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">จุดสั่งซื้อขั้นต่ำ</label>
                         <input type="number" id="new-prod-min" class="w-full px-5 py-4 border-2 border-slate-100 rounded-xl" placeholder="ระบุจุดวิกฤต">
@@ -581,48 +589,34 @@ function renderTab() {
                 </thead>
                 <tbody class="divide-y divide-pink-50">
                     ${(() => {
-    // 1. กำหนดลำดับชื่อสินค้าที่ต้องการให้เรียงจากบนลงล่าง
-    const order = [
-        "Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", 
-        "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"
-    ];
-    
-    // 2. สั่งเรียงลำดับ (Sort) ข้อมูลก่อน
-    return [...stockData].sort((a, b) => {
-        const nameA = (a.productName || "").trim();
-        const nameB = (b.productName || "").trim();
-        
-        let indexA = order.indexOf(nameA);
-        let indexB = order.indexOf(nameB);
-        
-        // ถ้าไม่เจอในรายการ (เช่น พิมพ์ระบุเอง) ให้เอาไปไว้ท้ายสุด
-        if (indexA === -1) indexA = 999;
-        if (indexB === -1) indexB = 999;
-        
-        if (indexA !== indexB) {
-            return indexA - indexB;
-        }
-        // กรณีพิมพ์ชื่อเองเหมือนกัน ให้เรียงตามตัวอักษร ก-ฮ / A-Z
-        return nameA.localeCompare(nameB, 'th');
-    }).map(s => {
-        // 3. นำข้อมูลที่เรียงแล้วมาเข้าสู่กระบวนการแสดงผลเดิมของคุณ
-        const price = s.price || 0;
-        const total = s.currentStock * price;
-        return `
-        <tr class="hover:bg-pink-50/50">
-            <td class="px-6 py-5 text-center"><div class="w-3 h-3 rounded-full mx-auto ${s.currentStock <= s.minStock ? 'bg-slate-700 animate-pulse' : 'bg-pink-400'}"></div></td>
-            <td class="px-6 py-5 font-black text-slate-800">${s.productName}</td>
-            <td class="px-6 py-5 font-black text-pink-600 text-center">${s.currentStock}</td>
-            <td class="px-6 py-5 text-center font-bold">${s.minStock}</td>
-            <td class="px-6 py-5 text-center font-bold">${price.toLocaleString()}</td>
-            <td class="px-6 py-5 text-center font-black text-slate-800">${total.toLocaleString()}</td>
-            <td class="px-6 py-5 text-center">
-                <button onclick="handleEditStock('${s.id}', '${s.productName}', ${s.currentStock}, ${s.minStock}, ${price})" class="text-pink-400 hover:bg-pink-100 p-2 rounded-full"><i class="fas fa-edit"></i></button>
-                <button onclick="handleDeleteProduct('${s.id}', '${s.productName}')" class="text-slate-300 hover:bg-slate-100 p-2 rounded-full"><i class="fas fa-trash-alt"></i></button>
-            </td>
-        </tr>`;
-    }).join('');
-})()}
+                        const order = ["Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"];
+                        return [...stockData].sort((a, b) => {
+                            const nameA = (a.productName || "").trim();
+                            const nameB = (b.productName || "").trim();
+                            let indexA = order.indexOf(nameA);
+                            let indexB = order.indexOf(nameB);
+                            if (indexA === -1) indexA = 999;
+                            if (indexB === -1) indexB = 999;
+                            if (indexA !== indexB) return indexA - indexB;
+                            return nameA.localeCompare(nameB, 'th');
+                        }).map(s => {
+                            const price = s.price || 0;
+                            const total = s.currentStock * price;
+                            return `
+                                <tr class="hover:bg-pink-50/50">
+                                    <td class="px-6 py-5 text-center"><div class="w-3 h-3 rounded-full mx-auto ${s.currentStock <= s.minStock ? 'bg-slate-700 animate-pulse' : 'bg-pink-400'}"></div></td>
+                                    <td class="px-6 py-5 font-black text-slate-800">${s.productName}</td>
+                                    <td class="px-6 py-5 font-black text-pink-600 text-center">${s.currentStock}</td>
+                                    <td class="px-6 py-5 text-center font-bold">${s.minStock}</td>
+                                    <td class="px-6 py-5 text-center font-bold">${price.toLocaleString()}</td>
+                                    <td class="px-6 py-5 text-center font-black text-slate-800">${total.toLocaleString()}</td>
+                                    <td class="px-6 py-5 text-center">
+                                        <button onclick="handleEditStock('${s.id}', '${s.productName}', ${s.currentStock}, ${s.minStock}, ${price})" class="text-pink-400 hover:bg-pink-100 p-2 rounded-full"><i class="fas fa-edit"></i></button>
+                                        <button onclick="handleDeleteProduct('${s.id}', '${s.productName}')" class="text-slate-300 hover:bg-slate-100 p-2 rounded-full"><i class="fas fa-trash-alt"></i></button>
+                                    </td>
+                                </tr>`;
+                        }).join('');
+                    })()}
                 </tbody>
             </table>
         </div>
@@ -742,6 +736,7 @@ function renderTab() {
                                 <th class="px-6 py-5">ไรเดอร์</th>
                                 <th class="px-6 py-5">รหัสร้าน/สาขา</th>
                                 <th class="px-6 py-5 text-center">ราคาขายรวม</th>
+				<th class="px-6 py-5 text-center">หักรายได้</th>
                                 <th class="px-6 py-5 text-center">ค่าส่ง</th>
                                 <th class="px-6 py-5 text-center">ค่าตรวจประวัติ</th>
 				<th class="px-6 py-5 text-center">ยอดรวมสุทธิ</th>
@@ -751,16 +746,15 @@ function renderTab() {
                         <tbody class="divide-y divide-pink-50">
                             ${approvedRequests.map(r => {
                                 const isEditing = editingRequestId === r.id;
-                                // คำนวณราคาขาย (ราคาต่อชิ้น * จำนวน)
-                                // คำนวณราคาขาย (ราคาต่อชิ้น * จำนวน)
 				const salePrice = (r.productPrice || 0) * r.quantity;
 
 				// ดึงค่าขนส่งและค่าตรวจประวัติมาแปลงเป็นตัวเลขเพื่อคำนวณ
 				const deliveryFee = parseFloat(r.deliveryFee) || 0;
 				const bgCheckFee = parseFloat(r.bgCheckFee) || 0;
+				const deductIncome = parseFloat(r.deductIncome) || 0;
 
 				// คำนวณยอดรวมสุทธิ
-				const netTotal = salePrice + deliveryFee + bgCheckFee;
+				const netTotal = (salePrice + deliveryFee + bgCheckFee) - deductIncome;
                                 
                                 return `
                                     <tr class="hover:bg-pink-50/50 transition-all sale-row">
@@ -777,6 +771,11 @@ function renderTab() {
                                         
                                         <td class="px-6 py-4 text-sm font-black text-green-600 text-center">${salePrice.toLocaleString()}</td>
 
+<td class="px-6 py-4 text-center">
+    ${isEditing ? 
+      `<input type="number" id="edit-sale-deduct-${r.id}" value="${r.deductIncome || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` 
+      : (r.deductIncome || 0)}
+</td>
 <td class="px-6 py-4 text-center">
     ${isEditing ? `<input type="number" id="edit-sale-delivery-${r.id}" value="${r.deliveryFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.deliveryFee || 0)}
 </td>
@@ -838,7 +837,7 @@ function renderTab() {
                         <tbody class="divide-y divide-pink-50">
                             ${sortedAddLogs.map(log => {
                                 const isEditing = editingPurchaseId === log.id;
-                                const unitCost = PURCHASE_COSTS[log.productName] !== undefined ? PURCHASE_COSTS[log.productName] : 0;
+                                const unitCost = (log.unitPrice !== undefined) ? log.unitPrice : (PURCHASE_COSTS[log.productName] || 0);
                                 const totalCost = unitCost * log.quantity;
                                 
                                 return `
@@ -879,6 +878,28 @@ function renderTab() {
                 ${sortedAddLogs.length === 0 ? '<div class="p-16 text-center text-slate-400 font-bold"><i class="fas fa-folder-open text-4xl mb-3 opacity-20"></i><br>ยังไม่มีประวัติการซื้อ</div>' : ''}
             </div>
         `;
+    }
+}
+
+function autoFillCost(productName) {
+    // 1. ระบุ ID ของช่อง "ราคาซื้อ/ต้นทุน (บาท)" 
+    // *สำคัญ: เช็คให้แน่ใจว่า ID ใน HTML ของคุณคือ 'buy-cost-input' 
+    // ถ้าตั้งชื่อไว้เป็นอย่างอื่น ให้เปลี่ยนใน '...' ให้ตรงกันครับ
+    const costInput = document.getElementById('buy-cost-input'); 
+    
+    // 2. ค้นหาสินค้าจากสต็อก
+    const product = stockData.find(s => s.productName === productName);
+
+    // 3. จัดการแสดงผล
+    if (productName === 'อื่นๆ') {
+        // กรณีเลือก "อื่นๆ": ให้ล้างค่าเป็นว่าง และเปิดให้คุณพิมพ์ราคาต้นทุนเองได้
+        costInput.value = ''; 
+        costInput.readOnly = false; // ปลดล็อคให้พิมพ์
+        costInput.focus();          // เด้ง cursor ไปที่ช่องนั้นเลย
+    } else if (product) {
+        // กรณีเลือกสินค้าปกติ: ดึงราคาต้นทุนจาก DB มาใส่
+        costInput.value = product.purchasePrice || 0;
+        costInput.readOnly = true;  // (ถ้าอยากให้แก้ไขไม่ได้) หรือลบบรรทัดนี้ออกถ้าอยากให้แก้ได้ตลอด
     }
 }
 
@@ -1004,6 +1025,7 @@ async function handleAddNewProduct(e) {
     const minInput = document.getElementById('new-prod-min');
     const priceInput = document.getElementById('new-prod-price');
     const customInput = document.getElementById('new-prod-custom');
+    const purchasePriceInput = document.getElementById('new-prod-purchase-price');
     
     // 1. ตรวจสอบเงื่อนไขชื่อสินค้า
     let name = nameInput.value;
@@ -1012,23 +1034,16 @@ async function handleAddNewProduct(e) {
         name = customInput ? customInput.value : 'สินค้าไม่ระบุชื่อ';
     }
 
-    const stockToAdd = parseInt(stockInput.value);
+    // --- แก้ไขตรงนี้: ใส่ || 0 เพื่อกันค่า NaN ---
+    const stockToAdd = parseInt(stockInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
-    
-    // 2. ตรวจสอบจุดสั่งซื้อขั้นต่ำ
-    let min = parseInt(minInput.value);
-    
-    // ถ้าไม่ใช่ "อื่นๆ" และไม่มีการระบุค่า หรือค่าไม่ใช่ตัวเลข ให้แจ้งเตือน
-    if (!isOther && (isNaN(min) || minInput.value === '')) {
-        await KuromiAlert('กรุณาระบุจุดสั่งซื้อขั้นต่ำสำหรับสินค้าทั่วไป');
-        return;
-    }
-    // ถ้าเป็น "อื่นๆ" และไม่ได้ระบุค่า ให้กำหนดเป็น 0
-    if (isNaN(min)) min = 0;
+    const purchasePrice = isOther ? (parseFloat(purchasePriceInput.value) || 0) : 0;
+    let min = parseInt(minInput.value) || 0;
+    // ----------------------------------------
 
     const addedBy = currentUser.name || 'Admin';
 
-    if (!(await KuromiConfirm(`ยืนยันการเพิ่มสินค้า?\n\nรายการ: ${name}\nจำนวน: ${stockToAdd}\nราคา: ${price}\nจุดสั่งซื้อ: ${min}\nผู้เพิ่ม: ${addedBy}`))) return;
+    if (!(await KuromiConfirm(`ยืนยันการเพิ่มสินค้า?\n\nรายการ: ${name}\nจำนวน: ${stockToAdd}\nราคาขาย: ${price}\nต้นทุน: ${purchasePrice}\nจุดสั่งซื้อ: ${min}\nผู้เพิ่ม: ${addedBy}`))) return;
 
     try {
         const existingProduct = stockData.find(s => s.productName === name);
@@ -1045,6 +1060,7 @@ async function handleAddNewProduct(e) {
                 currentStock: stockToAdd,
                 minStock: min,
                 price: price,
+                purchasePrice: purchasePrice, 
                 withdrawalCount: 0,
                 createdAt: firebase.firestore.FieldValue.serverTimestamp()
             });
@@ -1055,14 +1071,16 @@ async function handleAddNewProduct(e) {
             productName: name,
             quantity: stockToAdd,
             addedBy: addedBy,
+            unitPrice: purchasePrice, // ค่านี้จะไม่เป็น NaN แน่นอน
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
 
         e.target.reset();
-        if (customInput) customInput.classList.add('hidden');
+        // ... (ส่วนที่เหลือของโค้ดคงเดิม)
         
         await KuromiAlert('ดำเนินการเรียบร้อยแล้ว');
     } catch (err) { 
+        console.error("Error Detail:", err); // เพิ่มบรรทัดนี้เพื่อดู Error ใน Console ชัดขึ้น
         await KuromiAlert('เกิดข้อผิดพลาด: ' + err.message); 
     }
 }
@@ -1157,16 +1175,16 @@ async function updateRequestField(reqId, field, value) {
 }
 
 function toggleCustomProductInput() {
-    const nameSelect = document.getElementById('new-prod-name');
+    const select = document.getElementById('new-prod-name');
     const customInput = document.getElementById('new-prod-custom');
-    const minInput = document.getElementById('new-prod-min');
+    const purchasePriceContainer = document.getElementById('purchase-price-container');
 
-    if (nameSelect.value === 'อื่นๆ') {
+    if (select.value === 'อื่นๆ') {
         customInput.classList.remove('hidden');
-        minInput.removeAttribute('required'); // ไม่บังคับใส่
+        purchasePriceContainer.classList.remove('hidden');
     } else {
         customInput.classList.add('hidden');
-        minInput.setAttribute('required', 'required'); // บังคับใส่
+        purchasePriceContainer.classList.add('hidden');
     }
 }
 
@@ -1301,9 +1319,14 @@ async function approveRequest(reqId, newStatus) {
 
         if (!reqData) return;
 
-        // ถ้าสถานะเดิมได้รับการอนุมัติอยู่แล้ว และจะเปลี่ยนสถานะ
+        // คำนวณยอดสุทธิ (ราคาสินค้า * จำนวน) - ยอดหัก
+        const pricePerUnit = reqData.productPrice || 0;
+        const totalAmount = pricePerUnit * reqData.quantity;
+        const deductAmount = reqData.deductIncome || 0;
+        const netTotal = totalAmount - deductAmount;
+
+        // ตรวจสอบสต็อก (ส่วนเดิม)
         if (reqData.status === 'approved' && newStatus !== 'approved') {
-            // คืนค่าสต็อกกลับไปที่สินค้าคงเหลือ และลดยอดเบิกสะสมลง
             const product = stockData.find(s => s.productName === reqData.productName);
             if (product) {
                 await getStockCollection().doc(product.id).update({
@@ -1312,7 +1335,6 @@ async function approveRequest(reqId, newStatus) {
                 });
             }
         } 
-        // ถ้าสถานะใหม่คือ อนุมัติ และเดิมยังไม่อนุมัติ
         else if (newStatus === 'approved' && reqData.status !== 'approved') {
             const product = stockData.find(s => s.productName === reqData.productName);
             if (!product || product.currentStock < reqData.quantity) {
@@ -1320,18 +1342,18 @@ async function approveRequest(reqId, newStatus) {
                 renderTab();
                 return;
             }
-            // หักสต็อกสินค้าคงเหลือ และเพิ่มยอดเบิกสะสม
             await getStockCollection().doc(product.id).update({
                 currentStock: firebase.firestore.FieldValue.increment(-reqData.quantity),
                 withdrawalCount: firebase.firestore.FieldValue.increment(reqData.quantity)
             });
         }
 
-        // อัปเดตสถานะในรายการคำขอเบิกสินค้า
+        // อัปเดตสถานะและบันทึกยอดสุทธิที่คำนวณได้
         await reqRef.update({
             status: newStatus,
             approvedBy: currentUser.name,
-            approvedAt: firebase.firestore.FieldValue.serverTimestamp()
+            approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
+            netTotal: netTotal // บันทึกยอดที่หักลบแล้ว
         });
 
         await KuromiAlert(`ดำเนินการ ${label} เรียบร้อยแล้ว`);
