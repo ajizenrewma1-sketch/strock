@@ -10,18 +10,16 @@
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore-compat.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
 </head>
-<body class="bg-pink-50 font-sans text-slate-800 selection:bg-pink-200">
+<body class="bg-slate-50 font-sans text-slate-800 selection:bg-blue-100">
 
     <!-- Login Section -->
     <div id="login-section" class="min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
-        <div class="absolute bottom-10 right-10 text-pink-200 opacity-40 text-9xl transform rotate-12"><i class="fas fa-heart"></i></div>
         
-        <div class="max-w-md w-full bg-white rounded-[2rem] shadow-2xl shadow-pink-200/50 p-10 border-4 border-pink-100 relative z-10">
+        <div class="max-w-md w-full bg-white rounded-xl shadow-2xl shadow-pink-200/50 p-10 border-4 border-pink-100 relative z-10">
             <div class="text-center mb-10">
-                <div class="bg-slate-900 w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-xl shadow-slate-300 transform rotate-3">
-                    <i class="fas fa-boxes text-pink-500 text-4xl transform -rotate-3"></i>
-                </div>
                 <h1 class="text-3xl font-black text-slate-800 tracking-wider">ระบบจัดการ<span class="text-pink-500">สต็อก</span></h1>
                 <p class="text-slate-500 font-medium mt-2 text-sm">เข้าสู่ระบบเพื่อดำเนินการ</p>
             </div>
@@ -34,7 +32,7 @@
                     <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">Password</label>
                     <input type="password" id="password" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all font-bold text-slate-700" required placeholder="123 หรือ 456">
                 </div>
-                <button type="submit" id="login-btn" class="w-full mt-4 bg-pink-500 text-white py-4 rounded-xl font-black text-lg shadow-lg shadow-pink-200 hover:bg-pink-600 transition-all transform active:scale-95 flex justify-center items-center gap-2">
+                <button type="submit" id="login-btn" class="w-full mt-4 bg-blue-600 text-white py-4 rounded-xl font-black text-lg shadow-lg shadow-pink-200 hover:bg-pink-600 transition-all transform active:scale-95 flex justify-center items-center gap-2">
                     เข้าสู่ระบบ <i class="fas fa-arrow-right"></i>
                 </button>
             </form>
@@ -68,45 +66,71 @@
 
     <script>
 // --- CUSTOM POPUPS ---
-function KuromiAlert(msg) {
+// 1. ฟังก์ชัน KuromiAlert (ดัดแปลงมาจาก SystemAlert ของคุณ)
+async function KuromiAlert(msg) {
     return new Promise(resolve => {
         const modal = document.createElement('div');
-        modal.className = "fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
+        modal.className = "fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
         modal.innerHTML = `
-            <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl transform transition-all border-4 border-slate-800 relative overflow-hidden text-center">
-                <div class="w-16 h-16 bg-pink-100 text-pink-500 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl transform rotate-3">
-                    <i class="fas fa-bell transform -rotate-3"></i>
+            <div class="bg-white rounded-xl p-8 w-full max-w-sm shadow-2xl border border-slate-200 relative overflow-hidden text-center">
+                <div class="w-14 h-14 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center mx-auto mb-5 text-2xl">
+                    <i class="fas fa-info-circle"></i>
                 </div>
-                <h3 class="text-xl font-black text-slate-800 mb-3">แจ้งเตือน</h3>
-                <p class="text-sm font-medium text-slate-600 mb-8 whitespace-pre-line leading-relaxed">${msg}</p>
-                <button id="k-alert-ok" class="w-full px-4 py-4 rounded-xl font-black text-white bg-slate-800 hover:bg-slate-900 shadow-lg shadow-slate-300 transition-all">ตกลง</button>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">แจ้งเตือน</h3>
+                <p class="text-sm font-normal text-slate-600 mb-6 whitespace-pre-line leading-relaxed">${msg}</p>
+                <button id="kuromi-alert-ok" class="w-full px-4 py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">ตกลง</button>
             </div>
         `;
         document.body.appendChild(modal);
-        document.getElementById('k-alert-ok').onclick = () => { document.body.removeChild(modal); resolve(); };
+        document.getElementById('kuromi-alert-ok').onclick = () => { document.body.removeChild(modal); resolve(); };
     });
 }
 
-function KuromiConfirm(msg) {
+// 2. ฟังก์ชัน KuromiConfirm (สร้างขึ้นใหม่เพื่อให้มีปุ่ม ยืนยัน/ยกเลิก)
+async function KuromiConfirm(msg) {
     return new Promise(resolve => {
         const modal = document.createElement('div');
-        modal.className = "fixed inset-0 bg-slate-900/60 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
+        modal.className = "fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
         modal.innerHTML = `
-            <div class="bg-white rounded-[2rem] p-8 w-full max-w-sm shadow-2xl transform transition-all border-4 border-pink-100 relative overflow-hidden text-center">
-                <div class="w-16 h-16 bg-slate-100 text-slate-800 rounded-2xl flex items-center justify-center mx-auto mb-5 text-3xl transform -rotate-3">
-                    <i class="fas fa-question transform rotate-3"></i>
+            <div class="bg-white rounded-xl p-8 w-full max-w-sm shadow-2xl border border-slate-200 relative overflow-hidden text-center">
+                <div class="w-14 h-14 bg-amber-50 text-amber-600 rounded-xl flex items-center justify-center mx-auto mb-5 text-2xl">
+                    <i class="fas fa-question-circle"></i>
                 </div>
-                <h3 class="text-xl font-black text-slate-800 mb-3">ยืนยันการดำเนินการ</h3>
-                <p class="text-sm font-medium text-slate-600 mb-8 whitespace-pre-line leading-relaxed text-left">${msg}</p>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">ยืนยันการดำเนินการ</h3>
+                <p class="text-sm font-normal text-slate-600 mb-6 whitespace-pre-line leading-relaxed">${msg}</p>
                 <div class="flex gap-3">
-                    <button id="k-conf-cancel" class="flex-1 px-4 py-4 rounded-xl font-black text-slate-500 bg-slate-100 hover:bg-slate-200 transition-all">ยกเลิก</button>
-                    <button id="k-conf-ok" class="flex-1 px-4 py-4 rounded-xl font-black text-white bg-pink-500 hover:bg-pink-600 shadow-lg shadow-pink-200 transition-all">ยืนยัน</button>
+                    <button id="kuromi-confirm-no" class="flex-1 px-4 py-3 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all">ยกเลิก</button>
+                    <button id="kuromi-confirm-yes" class="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">ยืนยัน</button>
                 </div>
             </div>
         `;
         document.body.appendChild(modal);
-        document.getElementById('k-conf-cancel').onclick = () => { document.body.removeChild(modal); resolve(false); };
-        document.getElementById('k-conf-ok').onclick = () => { document.body.removeChild(modal); resolve(true); };
+        
+        document.getElementById('kuromi-confirm-yes').onclick = () => { document.body.removeChild(modal); resolve(true); };
+        document.getElementById('kuromi-confirm-no').onclick = () => { document.body.removeChild(modal); resolve(false); };
+    });
+}
+
+function SystemConfirm(msg) {
+    return new Promise(resolve => {
+        const modal = document.createElement('div');
+        modal.className = "fixed inset-0 bg-slate-900/40 flex items-center justify-center z-[100] p-4 backdrop-blur-sm";
+        modal.innerHTML = `
+            <div class="bg-white rounded-xl p-8 w-full max-w-sm shadow-2xl border border-slate-200 relative overflow-hidden text-center">
+                <div class="w-14 h-14 bg-slate-100 text-slate-600 rounded-xl flex items-center justify-center mx-auto mb-5 text-2xl">
+                    <i class="fas fa-question-circle"></i>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800 mb-2">ยืนยันการดำเนินการ</h3>
+                <p class="text-sm font-normal text-slate-600 mb-6 whitespace-pre-line leading-relaxed text-left">${msg}</p>
+                <div class="flex gap-3">
+                    <button id="sys-conf-cancel" class="flex-1 px-4 py-3 rounded-lg font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all">ยกเลิก</button>
+                    <button id="sys-conf-ok" class="flex-1 px-4 py-3 rounded-lg font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-all">ยืนยัน</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        document.getElementById('sys-conf-cancel').onclick = () => { document.body.removeChild(modal); resolve(false); };
+        document.getElementById('sys-conf-ok').onclick = () => { document.body.removeChild(modal); resolve(true); };
     });
 }
 
@@ -145,6 +169,7 @@ let summarySelectedDate = new Date().toISOString().split('T')[0];
 let unsubStock = null;
 let unsubRequests = null;
 let unsubAddLogs = null;
+let currentSummaryMonth = new Date().toISOString().slice(0, 7);
 
 // --- NEW VARIABLES & HELPERS ---
 const PURCHASE_COSTS = {
@@ -213,7 +238,18 @@ loginForm.addEventListener('submit', async (e) => {
             document.getElementById('user-info').innerText = `สิทธิ์ใช้งาน: ${currentUser.name}`;
             
             setupNav();
-            loadInitialTab();
+
+            // --- ส่วนที่แก้ไข ---
+            // เช็คว่าถ้าเป็น approver ให้ไปหน้า summary ทันที
+            if (currentUser.role === 'approver') {
+                currentTab = 'summary';
+            } else {
+                // สำหรับ user อื่นให้ไปที่หน้าเริ่มต้นปกติ (เช่น dashboard)
+                currentTab = 'dashboard'; 
+            }
+            renderTab(); // สั่งให้แสดงผลตาม currentTab ที่ตั้งค่าไว้
+            // ------------------
+
             startListeners();
         } catch (error) {
             console.error("Auth Error:", error);
@@ -237,10 +273,10 @@ function handleLogout() {
 function setupNav() {
     const nav = document.getElementById('nav-menu');
     
-    // ปรับสีเมนูที่เลือก: ใช้ bg-pink-500/20 (ชมพูจางๆ) และเพิ่ม border เพื่อให้ดูนุ่มนวล
+    // ปรับสีเมนูที่เลือก: ใช้ bg-blue-600/20 (ชมพูจางๆ) และเพิ่ม border เพื่อให้ดูนุ่มนวล
     const getActive = (tab) => {
         return currentTab === tab 
-            ? 'bg-pink-500/20 text-pink-300 border border-pink-500/50 shadow-none' 
+            ? 'bg-blue-600/20 text-pink-300 border border-pink-500/50 shadow-none' 
             : 'text-slate-400 hover:bg-slate-800 hover:text-pink-400';
     };
 
@@ -336,83 +372,92 @@ function renderTab() {
     if (!container) return;
     
     if (currentTab === 'request') {
-        container.innerHTML = `
-            <div class="bg-white p-8 rounded-[2rem] shadow-xl shadow-pink-100/50 border-4 border-pink-50 max-w-2xl mx-auto relative overflow-hidden">
-                <div class="absolute -top-6 -right-6 text-pink-50 opacity-50 transform rotate-12 text-9xl pointer-events-none"><i class="fas fa-heart"></i></div>
-                <h3 class="text-2xl font-black mb-8 text-slate-800 flex items-center gap-3 relative z-10">
-                    <i class="fas fa-plus-circle text-pink-500"></i> กรอกข้อมูลเบิกสินค้า
-                </h3>
-                <form onsubmit="handleRequestSubmit(event)" class="space-y-5 relative z-10">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">วันที่</label>
-                            <input type="date" id="req-date" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" value="${new Date().toISOString().split('T')[0]}" required>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">เลือกสินค้า</label>
-                            <select id="req-product" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 <select id="req-product" onchange="autoFillCost(this.value)" class="focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold w-full px-5 py-3 border-2 border-slate-100 rounded-xl" required>
-    <option value="">-- เลือกสินค้า --</option>
-    ${(() => {
-        const order = ["Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"];
-        
-        return [...stockData]
-            .map(s => {
-                const reserved = getReservedQuantity(s.productName);
-                const available = s.currentStock - reserved;
-                return { ...s, available };
-            })
-            .filter(s => s.available > 0) // กรองเฉพาะที่มีของเหลือให้เบิกจริงๆ
-            .sort((a, b) => {
-                const nameA = (a.productName || "").trim();
-                const nameB = (b.productName || "").trim();
-                let indexA = order.indexOf(nameA);
-                let indexB = order.indexOf(nameB);
-                if (indexA === -1) indexA = 999;
-                if (indexB === -1) indexB = 999;
-                return indexA !== indexB ? indexA - indexB : nameA.localeCompare(nameB, 'th');
-            })
-            .map(s => `
-                <option value="${s.productName}">
-                    ${s.productName} (คงเหลือ: ${s.available}, ราคา: ${s.price || 0} บาท)
-                </option>
-            `).join('');
-    })()}
-</select>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">จำนวน</label>
-                            <input type="number" id="req-qty" min="1" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" required>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อผู้เบิก</label>
-                            <input type="text" id="req-name" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" placeholder="กรอกชื่อผู้เบิก" required>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อไรเดอร์</label>
-                            <input type="text" id="req-rider" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" placeholder="กรอกชื่อไรเดอร์" required>
-                        </div>
-                        <div>
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">รหัสร้าน</label>
-                            <input type="text" id="req-store" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" placeholder="เช่น 2863">
-                        </div>
-                        <div class="md:col-span-2">
-                            <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">ชื่อสาขา</label>
-                            <input type="text" id="req-branch" class="w-full px-5 py-3 border-2 border-slate-100 rounded-xl focus:border-pink-400 focus:ring-4 focus:ring-pink-100 outline-none transition-all text-slate-700 font-bold" placeholder="เช่น เพชรเกษม 51">
-                        </div>
-			<div class="mb-4">
-    			    <label class="block text-sm font-bold text-slate-700 mb-1">หักจากรายได้ (ถ้ามี)</label>
-    			    <input type="number" id="withdraw-deduct-income" class="w-full border-2 border-slate-200 rounded-lg px-3 py-2 font-			     bold text-slate-700 outline-none focus:border-pink-400" placeholder="ระบุจำนวนเงินที่ต้องการหัก">
-			</div>
-                    </div>
-                    <button type="submit" class="w-full mt-6 bg-pink-500 text-white py-4 rounded-xl font-black text-lg shadow-xl shadow-pink-200 hover:bg-pink-600 transition-all transform active:scale-95 flex justify-center items-center gap-2">
-                        <i class="fas fa-paper-plane text-pink-200"></i> ยืนยันการเบิก
-                    </button>
-                </form>
-            </div>
-        `;
-     } else if (currentTab === 'status') {
     container.innerHTML = `
-        <div class="bg-white p-5 rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div class="bg-white p-8 rounded-xl shadow-sm border border-slate-200 max-w-2xl mx-auto">
+            <h3 class="text-xl font-bold mb-8 text-slate-800 flex items-center gap-3">
+                <i class="fas fa-file-invoice text-blue-600"></i> กรอกข้อมูลเบิกสินค้า
+            </h3>
+            
+            <form onsubmit="handleRequestSubmit(event)" class="space-y-5">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">วันที่</label>
+                        <input type="date" id="req-date" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" value="${new Date().toISOString().split('T')[0]}" required>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">เลือกสินค้า</label>
+                        <select id="req-product" onchange="autoFillCost(this.value)" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" required>
+                            <option value="">-- เลือกสินค้า --</option>
+                            ${(() => {
+                                const order = ["Size M", "Size L", "Size XL", "Size 2XL", "Size 3XL", "Size 4XL", "Size 5XL", "สายคล้องบัตร", "กระเป๋าเก็บความเย็นใหญ่", "กระเป๋าเก็บความเย็นเล็ก"];
+                                return [...stockData]
+                                    .map(s => {
+                                        const reserved = getReservedQuantity(s.productName);
+                                        const available = s.currentStock - reserved;
+                                        return { ...s, available };
+                                    })
+                                    .filter(s => s.available > 0)
+                                    .sort((a, b) => {
+                                        const nameA = (a.productName || "").trim();
+                                        const nameB = (b.productName || "").trim();
+                                        let indexA = order.indexOf(nameA);
+                                        let indexB = order.indexOf(nameB);
+                                        if (indexA === -1) indexA = 999;
+                                        if (indexB === -1) indexB = 999;
+                                        return indexA !== indexB ? indexA - indexB : nameA.localeCompare(nameB, 'th');
+                                    })
+                                    .map(s => `
+                                        <option value="${s.productName}">
+                                            ${s.productName} (คงเหลือ: ${s.available}, ราคา: ${s.price || 0} บาท)
+                                        </option>
+                                    `).join('');
+                            })()}
+                        </select>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">จำนวน</label>
+                        <input type="number" id="req-qty" min="1" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" placeholder="0" required>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">ชื่อผู้เบิก</label>
+                        <input type="text" id="req-name" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" placeholder="กรอกชื่อผู้เบิก" required>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">ชื่อไรเดอร์</label>
+                        <input type="text" id="req-rider" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" placeholder="กรอกชื่อไรเดอร์" required>
+                    </div>
+
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">รหัสร้าน</label>
+                        <input type="text" id="req-store" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" placeholder="เช่น 2863">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">ชื่อสาขา</label>
+                        <input type="text" id="req-branch" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" placeholder="เช่น เพชรเกษม 51">
+                    </div>
+
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">หักจากรายได้ (ถ้ามี)</label>
+                        <input type="number" id="withdraw-deduct-income" class="w-full px-4 py-3 border border-slate-200 rounded-lg focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all text-slate-700" placeholder="0">
+                    </div>
+
+                </div>
+
+                <button type="submit" class="w-full mt-4 bg-slate-900 text-white py-3 rounded-lg font-bold hover:bg-slate-800 transition-all flex justify-center items-center gap-2">
+                    ยืนยันการเบิกสินค้า
+                </button>
+            </form>
+        </div>
+    `;
+} else if (currentTab === 'status') {
+    container.innerHTML = `
+        <div class="bg-white p-5 rounded-xl shadow-lg shadow-pink-100/50 border-4 border-pink-50 mb-6 grid grid-cols-2 md:grid-cols-4 gap-4">
             <input type="text" id="filter-branch" placeholder="🔍 ค้นหาสาขา..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
             <input type="text" id="filter-req" placeholder="🔍 ค้นหาผู้เบิก..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
             <input type="text" id="filter-rider" placeholder="🔍 ค้นหาไรเดอร์..." class="px-4 py-3 border-2 border-slate-100 rounded-xl text-sm outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 transition-all" oninput="filterStatusTable()">
@@ -424,7 +469,7 @@ function renderTab() {
             </select>
         </div>
 
-        <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
+        <div class="bg-white rounded-xl shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
             <table class="w-full text-left border-collapse">
                 <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
                     <tr>
@@ -490,10 +535,10 @@ function renderTab() {
             <div class="space-y-5">
                 <h2 class="text-2xl font-black text-slate-800 mb-6 flex items-center gap-3">
                     <i class="fas fa-clipboard-check text-pink-500"></i> รายการรออนุมัติ 
-                    <span class="bg-pink-500 text-white px-3 py-1 rounded-full text-sm shadow-md shadow-pink-200">${pending.length}</span>
+                    <span class="bg-blue-600 text-white px-3 py-1 rounded-full text-sm shadow-md shadow-pink-200">${pending.length}</span>
                 </h2>
                 ${pending.map(r => `
-                    <div class="bg-white p-6 rounded-[2rem] border-4 border-pink-50 shadow-lg shadow-pink-100/50 flex flex-col md:flex-row items-center justify-between gap-6 transform hover:-translate-y-1 transition-all">
+                    <div class="bg-white p-6 rounded-xl border-4 border-pink-50 shadow-lg shadow-pink-100/50 flex flex-col md:flex-row items-center justify-between gap-6 transform hover:-translate-y-1 transition-all">
                         <div class="grid grid-cols-2 md:grid-cols-5 flex-1 gap-4 w-full">
                             <div><label class="text-[10px] text-pink-400 uppercase font-black tracking-wider">สินค้า</label><p class="font-black text-slate-800 text-lg">${r.productName}</p></div>
                             <div><label class="text-[10px] text-pink-400 uppercase font-black tracking-wider">จำนวน</label><p class="font-black text-pink-600 text-2xl">${r.quantity}</p></div>
@@ -503,31 +548,31 @@ function renderTab() {
                         </div>
                         <div class="flex gap-3 w-full md:w-auto mt-4 md:mt-0">
                             <button onclick="approveRequest('${r.id}', 'rejected')" class="flex-1 px-5 py-3 rounded-xl font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 transition-all">ปฏิเสธ</button>
-                            <button onclick="approveRequest('${r.id}', 'approved')" class="flex-1 px-8 py-3 rounded-xl font-bold text-white bg-pink-500 hover:bg-pink-600 shadow-lg shadow-pink-200 transition-all">อนุมัติ</button>
+                            <button onclick="approveRequest('${r.id}', 'approved')" class="flex-1 px-8 py-3 rounded-xl font-bold text-white bg-blue-600 hover:bg-pink-600 shadow-lg shadow-pink-200 transition-all">อนุมัติ</button>
                         </div>
                     </div>
                 `).join('')}
-                ${pending.length === 0 ? '<div class="bg-white border-4 border-dashed border-pink-100 rounded-[2rem] p-20 text-center text-slate-400 font-bold"><i class="fas fa-check-circle text-5xl mb-4 text-pink-200"></i><br>ไม่มีรายการรออนุมัติ</div>' : ''}
+                ${pending.length === 0 ? '<div class="bg-white border-4 border-dashed border-pink-100 rounded-xl p-20 text-center text-slate-400 font-bold"><i class="fas fa-check-circle text-5xl mb-4 text-pink-200"></i><br>ไม่มีรายการรออนุมัติ</div>' : ''}
             </div>
         `;
     } else if (currentTab === 'stock') {
     container.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-slate-800 p-8 rounded-[2rem] text-white shadow-xl shadow-slate-300 relative overflow-hidden">
+            <div class="bg-slate-800 p-8 rounded-xl text-white shadow-xl shadow-slate-300 relative overflow-hidden">
                 <p class="text-pink-300 text-xs font-black tracking-widest uppercase mb-1">รายการสินค้าทั้งหมด</p>
                 <p class="text-5xl font-black">${stockData.length} <span class="text-lg font-bold text-slate-400">รายการ</span></p>
             </div>
-            <div class="bg-white p-8 rounded-[2rem] border-4 border-pink-50 shadow-lg shadow-pink-100/50">
+            <div class="bg-white p-8 rounded-xl border-4 border-pink-50 shadow-lg shadow-pink-100/50">
                 <p class="text-pink-400 text-xs font-black tracking-widest uppercase mb-1">จำนวนการเบิกสะสม</p>
                 <p class="text-5xl font-black text-slate-800">${stockData.reduce((a,b) => a + (b.withdrawalCount || 0), 0)}</p>
             </div>
-            <div class="bg-white p-8 rounded-[2rem] border-4 border-slate-100 shadow-lg shadow-slate-100/50">
+            <div class="bg-white p-8 rounded-xl border-4 border-slate-100 shadow-lg shadow-slate-100/50">
                 <p class="text-slate-400 text-xs font-black tracking-widest uppercase mb-1">สินค้าที่ต้องสั่งเพิ่ม</p>
                 <p class="text-5xl font-black text-slate-800">${stockData.filter(s => s.currentStock <= s.minStock).length}</p>
             </div>
         </div>
 
-        <div class="bg-white p-8 rounded-[2rem] border-4 border-pink-50 mb-8 shadow-lg shadow-pink-100/50">
+        <div class="bg-white p-8 rounded-xl border-4 border-pink-50 mb-8 shadow-lg shadow-pink-100/50">
             <h4 class="font-black text-xl mb-6 text-slate-800"><i class="fas fa-plus-circle text-pink-500"></i> เพิ่มสินค้าใหม่</h4>
             <form onsubmit="handleAddNewProduct(event)" class="space-y-5">
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
@@ -542,6 +587,13 @@ function renderTab() {
                             <option value="Size 3XL">Size 3XL</option>
                             <option value="Size 4XL">Size 4XL</option>
                             <option value="Size 5XL">Size 5XL</option>
+                            <option value="Size M มือสอง">Size M มือสอง</option>
+                            <option value="Size L มือสอง">Size L มือสอง</option>
+                            <option value="Size XL มือสอง">Size XL มือสอง</option>
+                            <option value="Size 2XL มือสอง">Size 2XL มือสอง</option>
+                            <option value="Size 3XL มือสอง">Size 3XL มือสอง</option>
+                            <option value="Size 4XL มือสอง">Size 4XL มือสอง</option>
+                            <option value="Size 5XL มือสอง">Size 5XL มือสอง</option>
                             <option value="สายคล้องบัตร">สายคล้องบัตร</option>
                             <option value="กระเป๋าเก็บความเย็นใหญ่">กระเป๋าเก็บความเย็นใหญ่</option>
                             <option value="กระเป๋าเก็บความเย็นเล็ก">กระเป๋าเก็บความเย็นเล็ก</option>
@@ -574,7 +626,7 @@ function renderTab() {
             </form>
         </div>
 
-        <div class="bg-white rounded-[2rem] shadow-lg border-4 border-pink-50 overflow-hidden">
+        <div class="bg-white rounded-xl shadow-lg border-4 border-pink-50 overflow-hidden">
             <table class="w-full text-left">
                 <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
                     <tr>
@@ -622,98 +674,197 @@ function renderTab() {
         </div>
     `;
 } else if (currentTab === 'summary') {
-        const selectedWithdrawals = requestsData.filter(r => r.status === 'approved' && r.date === summarySelectedDate);
-        const selectedAdditions = addLogsData.filter(l => l.date === summarySelectedDate);
+    // 0. ฟังก์ชันช่วยคำนวณยอดรวมของเดือนที่กำหนด (ใช้ซ้ำได้)
+    const calculateTotals = (monthStr) => {
+        const reqs = requestsData.filter(r => r.status === 'approved' && r.date && r.date.startsWith(monthStr));
+        const purchases = (typeof addLogsData !== 'undefined' ? addLogsData : []).filter(p => p.date && p.date.startsWith(monthStr));
+        
+        const sales = reqs.reduce((acc, r) => acc + (Number(r.productPrice) * Number(r.quantity)), 0);
+        const purchase = purchases.reduce((acc, log) => acc + ((log.unitPrice !== undefined ? log.unitPrice : (PURCHASE_COSTS[log.productName] || 0)) * Number(log.quantity)), 0);
+        
+        return { sales, purchase, profit: sales - purchase };
+    };
 
-        const movementsForDate = [
-            ...selectedWithdrawals.map(r => ({ id: r.id, type: 'out', date: r.date, productName: r.productName, quantity: r.quantity, person: r.requesterName, detail: `สาขา: ${r.branchName || '-'}` })),
-            ...selectedAdditions.map(l => ({ id: l.id, type: 'in', date: l.date, productName: l.productName, quantity: l.quantity, person: l.addedBy || 'ไม่ระบุ', detail: 'เพิ่มเข้าสต็อกหลัก' }))
-        ].sort((a,b) => b.date.localeCompare(a.date));
+    // คำนวณข้อมูลย้อนหลัง 6 เดือนสำหรับกราฟเส้น
+    const trendLabels = [];
+    const trendData = [];
+    const [selY, selM] = currentSummaryMonth.split('-').map(Number); // แยกปีและเดือน
+    
+    for (let i = 5; i >= 0; i--) {
+        const d = new Date(selY, selM - 1 - i, 1);
+        const mStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        const data = calculateTotals(mStr);
+        
+        const monthNames = ["", "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+        trendLabels.push(monthNames[d.getMonth() + 1]);
+        trendData.push(data.profit);
+    }
 
-        container.innerHTML = `
-            <div class="space-y-8">
-                <div class="flex justify-between items-end mb-4">
-                    <div>
-                        <h2 class="text-2xl font-black text-slate-800 flex items-center gap-3">
-                            <i class="fas fa-chart-pie text-pink-500"></i> สรุปผลการดำเนินการ
-                        </h2>
-                        <p class="text-slate-400 text-sm font-bold mt-1 uppercase tracking-widest">Movement Log Overview</p>
-                    </div>
-                    <button onclick="showMonthlySummaryModal()" class="px-8 py-3 bg-slate-800 text-white rounded-xl font-black text-sm hover:bg-slate-900 shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center gap-2">
-                        <i class="fas fa-calendar-alt text-pink-400"></i> ดูแบบรายเดือน
-                    </button>
+    // กรองข้อมูลเดือนปัจจุบัน
+    const filteredRequests = requestsData.filter(r => r.status === 'approved' && r.date && r.date.startsWith(currentSummaryMonth));
+    const allPurchaseList = (typeof addLogsData !== 'undefined' ? addLogsData : []);
+    const filteredPurchases = allPurchaseList.filter(p => p.date && p.date.startsWith(currentSummaryMonth));
+
+    // คำนวณเดือนก่อนหน้าเพื่อทำเปรียบเทียบ
+    const prevDate = new Date(selY, selM - 2, 1);
+    const prevMonthStr = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+    const prevData = calculateTotals(prevMonthStr);
+
+    // กำหนดชื่อเดือนสำหรับแสดงผล
+    const monthNamesFull = ["", "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+    const monthLabel = monthNamesFull[selM] || "";
+
+    // 1. คำนวณข้อมูลปัจจุบัน
+    const salesSummary = filteredRequests.reduce((acc, r) => ({ qty: acc.qty + Number(r.quantity), value: acc.value + (Number(r.productPrice) * Number(r.quantity)) }), { qty: 0, value: 0 });
+    const purchaseSummary = filteredPurchases.reduce((acc, log) => ({ qty: acc.qty + Number(log.quantity), value: acc.value + ((log.unitPrice !== undefined ? log.unitPrice : (PURCHASE_COSTS[log.productName] || 0)) * Number(log.quantity)) }), { qty: 0, value: 0 });
+    
+    const pendingCount = requestsData.filter(r => r.status === 'pending').length;
+    const profit = salesSummary.value - purchaseSummary.value;
+    const isProfit = profit >= 0;
+    const arrowIcon = isProfit ? '<i class="fas fa-arrow-up text-emerald-500 ml-2"></i>' : '<i class="fas fa-arrow-down text-red-500 ml-2"></i>';
+
+    const getTrendHTML = (currentVal, prevVal) => {
+        const percent = prevVal === 0 ? 100 : ((currentVal - prevVal) / prevVal) * 100;
+        const isUp = percent >= 0;
+        return `<span class="${isUp ? 'text-emerald-500' : 'text-red-500'} text-xs ml-1 font-bold">
+                    <i class="fa-solid fa-arrow-${isUp ? 'up' : 'down'} mr-0.5"></i>${Math.abs(percent).toFixed(1)}%
+                </span>`;
+    };
+
+    // เตรียมข้อมูลกราฟแท่ง
+    const productNames = [...new Set([...filteredPurchases.map(p => p.productName), ...filteredRequests.map(s => s.productName)])];
+    const boughtData = productNames.map(name => filteredPurchases.filter(p => p.productName === name).reduce((sum, p) => sum + Number(p.quantity), 0));
+    const soldData = productNames.map(name => filteredRequests.filter(s => s.productName === name).reduce((sum, s) => sum + Number(s.quantity), 0));
+
+    container.innerHTML = `
+        <div class="space-y-6">
+            <div class="flex justify-between items-center">
+                <h2 class="text-xl font-bold text-slate-800">แดชบอร์ดสรุปผลการดำเนินงาน</h2>
+                <input type="month" value="${currentSummaryMonth}" onchange="currentSummaryMonth = this.value; renderTab();" class="px-4 py-2 border border-slate-300 rounded-lg outline-none focus:ring-2 focus:ring-pink-500 font-bold text-slate-700">
+            </div>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="text-slate-500 text-sm font-medium mb-1">รายการสั่งซื้อเดือน${monthLabel}</div>
+                    <div class="text-2xl font-bold text-slate-900">${purchaseSummary.qty.toLocaleString()} <span class="text-sm font-normal text-slate-400">ชิ้น</span></div>
+                    <div class="text-xs text-slate-400 mt-2">ต้นทุน: ${purchaseSummary.value.toLocaleString()} บาท ${getTrendHTML(purchaseSummary.value, prevData.purchase)}</div>
                 </div>
-
-                <div class="bg-white rounded-[2rem] shadow-xl shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
-                    <div class="p-6 border-b border-pink-50 bg-pink-50/30 flex flex-col md:flex-row justify-between items-center gap-4">
-                        <h3 class="font-black text-slate-800 flex items-center gap-2">
-                            <i class="fas fa-history text-pink-500"></i> การเคลื่อนไหวสินค้าวันที่: 
-                            <span class="text-pink-600 font-black px-2">${summarySelectedDate}</span>
-                        </h3>
-                        <div class="flex items-center gap-3 bg-white px-4 py-2 rounded-2xl border-2 border-pink-100 shadow-sm">
-                            <label class="text-[10px] font-black text-slate-400 uppercase tracking-widest">เลือกวันที่จะดู:</label>
-                            <input type="date" value="${summarySelectedDate}" 
-                                   onchange="updateSummarySelectedDate(this.value)" 
-                                   class="font-black text-slate-700 outline-none cursor-pointer">
-                        </div>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-left border-collapse">
-                            <thead class="bg-slate-50 text-slate-400 text-[10px] uppercase font-black tracking-widest">
-                                <tr>
-                                    <th class="px-6 py-4">ประเภท</th>
-                                    <th class="px-6 py-4">สินค้า</th>
-                                    <th class="px-6 py-4 text-center">จำนวน</th>
-                                    <th class="px-6 py-4">ผู้รับผิดชอบ</th>
-                                    <th class="px-6 py-4">รายละเอียด</th>
-                                    ${currentUser.role === 'approver' ? '<th class="px-6 py-4 text-center">จัดการ</th>' : ''}
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y divide-pink-50">
-                                ${movementsForDate.map(m => `
-                                    <tr class="hover:bg-pink-50/50 transition-all">
-                                        <td class="px-6 py-4">
-                                            <span class="px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter ${m.type === 'in' ? 'bg-green-100 text-green-600' : 'bg-rose-100 text-rose-600'}">
-                                                ${m.type === 'in' ? '↑ เพิ่มเข้า' : '↓ เบิกออก'}
-                                            </span>
-                                        </td>
-                                        <td class="px-6 py-4 text-sm font-black text-slate-700">${m.productName}</td>
-                                        <td class="px-6 py-4 text-sm text-center font-black ${m.type === 'in' ? 'text-green-600' : 'text-rose-600'}">
-                                            ${m.type === 'in' ? '+' : '-'}${m.quantity}
-                                        </td>
-                                        <td class="px-6 py-4 text-sm font-bold text-slate-500">${m.person}</td>
-                                        <td class="px-6 py-4 text-xs font-medium text-slate-400 italic">${m.detail}</td>
-                                        ${currentUser.role === 'approver' ? `
-                                            <td class="px-6 py-4 text-center">
-                                                <button onclick="deleteMovementRecord('${m.id}', '${m.type}')" class="w-8 h-8 rounded-full text-slate-300 hover:text-white hover:bg-rose-500 transition-all inline-flex items-center justify-center">
-                                                    <i class="fas fa-trash-alt text-xs"></i>
-                                                </button>
-                                            </td>` : ''}
-                                    </tr>
-                                `).join('')}
-                                ${movementsForDate.length === 0 ? `<tr><td colspan="${currentUser.role === 'approver' ? 6 : 5}" class="p-16 text-center text-slate-300 font-bold">ไม่มีการเคลื่อนไหวในวันที่คุณเลือก</td></tr>` : ''}
-                            </tbody>
-                        </table>
-                    </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="text-slate-500 text-sm font-medium mb-1">รายการเบิกออกเดือน${monthLabel}</div>
+                    <div class="text-2xl font-bold text-emerald-600">${salesSummary.qty.toLocaleString()} <span class="text-sm font-normal text-slate-400">ชิ้น</span></div>
+                    <div class="text-xs text-slate-400 mt-2">ยอดขาย: ${salesSummary.value.toLocaleString()} บาท ${getTrendHTML(salesSummary.value, prevData.sales)}</div>
                 </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="bg-white p-6 rounded-[2rem] border-4 border-pink-50 shadow-lg">
-                        <h4 class="font-black text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-arrow-up text-green-500"></i> สถิติการเบิก (7 วันล่าสุด)</h4>
-                        <div class="space-y-4">
-                            ${getLast7DaysStat('withdraw')}
-                        </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow duration-200" 
+                     onclick="currentTab = 'approve'; renderTab();">
+                    <div class="text-slate-500 text-sm font-medium mb-1">รายการรอดำเนินการ</div>
+                    <div class="text-2xl font-bold text-amber-500">
+                        ${pendingCount.toLocaleString()} 
+                        <span class="text-sm font-normal text-slate-400">รายการ</span>
                     </div>
-                    <div class="bg-white p-6 rounded-[2rem] border-4 border-slate-100 shadow-lg">
-                        <h4 class="font-black text-slate-800 mb-4 flex items-center gap-2"><i class="fas fa-arrow-down text-blue-500"></i> สถิติการเพิ่ม (7 วันล่าสุด)</h4>
-                        <div class="space-y-4">
-                            ${getLast7DaysStat('add')}
-                        </div>
+                    <div class="text-xs text-amber-600 mt-2 font-medium">คลิกเพื่อดูรายการรออนุมัติ →</div>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <div class="text-slate-500 text-sm font-medium mb-1">ผลกำไร (เดือน${monthLabel})</div>
+                    <div class="text-2xl font-bold ${isProfit ? 'text-emerald-600' : 'text-red-600'}">
+                        ${Math.abs(profit).toLocaleString()} <span class="text-sm font-normal">บาท</span>
+                        ${arrowIcon}
                     </div>
                 </div>
             </div>
-        `;
-   } else if (currentTab === 'sale_trans') {
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="text-lg font-bold text-slate-700 mb-4">เปรียบเทียบการสั่งซื้อและการเบิกขอเดือน${monthLabel}</h3>
+                    <div style="height: 300px;"><canvas id="purchaseChart"></canvas></div>
+                </div>
+                <div class="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                    <h3 class="text-lg font-bold text-slate-700 mb-4">แนวโน้มกำไรขาดทุน (6 เดือนล่าสุด)</h3>
+                    <div style="height: 300px;"><canvas id="profitChart"></canvas></div>
+                </div>
+            </div>
+        </div>
+    `;
+
+    setTimeout(() => {
+        // ลงทะเบียน Plugin (ถ้ายังไม่ได้ลงทะเบียน)
+        if (typeof ChartDataLabels !== 'undefined') {
+            Chart.register(ChartDataLabels);
+        }
+
+        // --- กราฟแท่ง (แก้ไขให้ปิดตัวเลขแล้ว) ---
+        const ctxBar = document.getElementById('purchaseChart').getContext('2d');
+        if (window.myPurchaseChart) window.myPurchaseChart.destroy();
+        window.myPurchaseChart = new Chart(ctxBar, {
+            type: 'bar',
+            data: { 
+                labels: productNames, 
+                datasets: [
+                    { label: 'ซื้อเข้า', data: boughtData, backgroundColor: '#f472b6' }, 
+                    { label: 'เบิกออก', data: soldData, backgroundColor: '#38bdf8' }
+                ] 
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    datalabels: { display: false } // สั่งปิดตัวเลขเฉพาะกราฟนี้
+                }
+            }
+        });
+
+        // --- กราฟเส้น (กำไร/ขาดทุน - คงเดิมตามที่ต้องการ) ---
+        const ctxLine = document.getElementById('profitChart').getContext('2d');
+        if (window.myProfitChart) window.myProfitChart.destroy();
+        window.myProfitChart = new Chart(ctxLine, {
+            type: 'line',
+            data: {
+                labels: trendLabels,
+                datasets: [{
+                    label: 'สถานะ',
+                    data: trendData,
+                    borderColor: '#10b981', 
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 5,
+                    pointBackgroundColor: trendData.map(v => v >= 0 ? '#10b981' : '#ef4444'),
+                    segment: {
+                        borderColor: ctx => ctx.p0.parsed.y < 0 || ctx.p1.parsed.y < 0 ? '#ef4444' : '#10b981'
+                    }
+                }]
+            },
+            options: { 
+                responsive: true, 
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const val = context.raw;
+                                return val >= 0 ? `กำไร: ${val.toLocaleString()} บาท` : `ขาดทุน: ${Math.abs(val).toLocaleString()} บาท`;
+                            }
+                        }
+                    },
+                    datalabels: {
+                        anchor: 'end',
+                        align: 'top',
+                        formatter: (val) => val.toLocaleString(),
+                        font: { size: 10, weight: 'bold' },
+                        color: (ctx) => ctx.dataset.data[ctx.dataIndex] >= 0 ? '#10b981' : '#ef4444'
+                    }
+                },
+                scales: {
+                    y: { 
+                        grid: { display: false }, 
+                        ticks: { display: false } 
+                    },
+                    x: { grid: { display: false } }
+                }
+            }
+        });
+    }, 200);
+} else if (currentTab === 'sale_trans') {
         // 1.4 เรียงวันที่จากปัจจุบันไปอดีต
         const approvedRequests = requestsData.filter(r => r.status === 'approved').sort((a,b) => new Date(b.date) - new Date(a.date));
         
@@ -724,7 +875,7 @@ function renderTab() {
                 </h2>
                 <input type="text" id="search-sale" placeholder="🔍 ค้นหา ชื่อผู้เบิก, ไรเดอร์, รหัสร้าน/สาขา..." class="px-5 py-3 border-2 border-slate-100 rounded-xl outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 w-full md:w-80" oninput="filterSaleTable()">
             </div>
-            <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
+            <div class="bg-white rounded-xl shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-max">
                         <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
@@ -745,65 +896,68 @@ function renderTab() {
                         </thead>
                         <tbody class="divide-y divide-pink-50">
                             ${approvedRequests.map(r => {
-                                const isEditing = editingRequestId === r.id;
-				const salePrice = (r.productPrice || 0) * r.quantity;
+    // 1. เตรียมตัวแปรคำนวณก่อน (เพื่อความปลอดภัยและป้องกัน Error)
+    const isEditing = editingRequestId === r.id;
+    const qty = Number(r.quantity) || 0;
+    const price = Number(r.productPrice) || 0;
+    const salePrice = price * qty;
 
-				// ดึงค่าขนส่งและค่าตรวจประวัติมาแปลงเป็นตัวเลขเพื่อคำนวณ
-				const deliveryFee = parseFloat(r.deliveryFee) || 0;
-				const bgCheckFee = parseFloat(r.bgCheckFee) || 0;
-				const deductIncome = parseFloat(r.deductIncome) || 0;
+    const deliveryFee = Number(r.deliveryFee) || 0;
+    const bgCheckFee = Number(r.bgCheckFee) || 0;
+    const deductIncome = Number(r.deductIncome) || 0;
 
-				// คำนวณยอดรวมสุทธิ
-				const netTotal = (salePrice + deliveryFee + bgCheckFee) - deductIncome;
-                                
-                                return `
-                                    <tr class="hover:bg-pink-50/50 transition-all sale-row">
-                                        <td class="px-6 py-4 text-sm font-medium text-slate-500">${formatDateToDDMMYYYY(r.date)}</td>
-                                        <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
-                                        <td class="px-6 py-4 text-sm font-bold text-pink-600 text-center">${r.quantity}</td>
-                                        <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}</td>
-                                        
-                                        <td class="px-6 py-4 text-sm font-bold text-slate-900">
-                                            ${isEditing ? `<input type="text" id="edit-sale-rider-${r.id}" value="${r.riderName || ''}" class="w-24 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.riderName || '-')}
-                                        </td>
-                                        
-                                        <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.storeId}<br><span class="text-xs text-pink-500 font-bold uppercase">สาขา: ${r.branchName || '-'}</span></td>
-                                        
-                                        <td class="px-6 py-4 text-sm font-black text-green-600 text-center">${salePrice.toLocaleString()}</td>
+    // คำนวณยอดสุทธิ
+    const netTotal = (salePrice + deliveryFee + bgCheckFee) - deductIncome;
 
-<td class="px-6 py-4 text-center">
-    ${isEditing ? 
-      `<input type="number" id="edit-sale-deduct-${r.id}" value="${r.deductIncome || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` 
-      : (r.deductIncome || 0)}
-</td>
-<td class="px-6 py-4 text-center">
-    ${isEditing ? `<input type="number" id="edit-sale-delivery-${r.id}" value="${r.deliveryFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.deliveryFee || 0)}
-</td>
-<td class="px-6 py-4 text-center">
-    ${isEditing ? `<input type="number" id="edit-sale-bg-${r.id}" value="${r.bgCheckFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.bgCheckFee || 0)}
-</td>
-<td class="px-6 py-4 text-sm font-black text-pink-600 text-center">${netTotal.toLocaleString()}</td>
+    // 2. ส่งค่ากลับเป็น HTML
+    return `
+        <tr class="hover:bg-pink-50/50 transition-all sale-row">
+            <td class="px-6 py-4 text-sm font-medium text-slate-500">${formatDateToDDMMYYYY(r.date)}</td>
+            <td class="px-6 py-4 text-sm font-black text-slate-800">${r.productName}</td>
+            <td class="px-6 py-4 text-sm font-bold text-pink-600 text-center">${qty}</td>
+            <td class="px-6 py-4 text-sm font-bold text-slate-700">${r.requesterName}</td>
+            
+            <td class="px-6 py-4 text-sm font-bold text-slate-900">
+                ${isEditing ? `<input type="text" id="edit-sale-rider-${r.id}" value="${r.riderName || ''}" class="w-24 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : (r.riderName || '-')}
+            </td>
+            
+            <td class="px-6 py-4 text-sm font-bold text-slate-700">
+                ${r.storeId}<br><span class="text-xs text-pink-500 font-bold uppercase">สาขา: ${r.branchName || '-'}</span>
+            </td>
+            
+            <td class="px-6 py-4 text-sm font-black text-green-600 text-center">${salePrice.toLocaleString()}</td>
 
-<td class="px-6 py-4 text-center flex items-center justify-center gap-2">
-                                            ${isEditing ? `
-                                                <button onclick="saveEditSale('${r.id}')" class="w-8 h-8 rounded-full text-white bg-green-500 hover:bg-green-600 transition-all inline-flex items-center justify-center" title="บันทึก">
-                                                    <i class="fas fa-save text-xs"></i>
-                                                </button>
-                                                <button onclick="editingRequestId = null; renderTab();" class="w-8 h-8 rounded-full text-white bg-slate-400 hover:bg-slate-500 transition-all inline-flex items-center justify-center" title="ยกเลิก">
-                                                    <i class="fas fa-times text-xs"></i>
-                                                </button>
-                                            ` : `
-                                                <button onclick="editingRequestId = '${r.id}'; renderTab();" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-blue-500 transition-all inline-flex items-center justify-center" title="แก้ไข">
-                                                    <i class="fas fa-pencil-alt text-xs"></i>
-                                                </button>
-                                                <button onclick="deleteRequestRecord('${r.id}')" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-rose-500 transition-all inline-flex items-center justify-center" title="ลบข้อมูล">
-                                                    <i class="fas fa-trash-alt text-xs"></i>
-                                                </button>
-                                            `}
-                                        </td>
-                                    </tr>
-                                `;
-                            }).join('')}
+            <td class="px-6 py-4 text-center">
+                ${isEditing ? `<input type="number" id="edit-sale-deduct-${r.id}" value="${r.deductIncome || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : deductIncome.toLocaleString()}
+            </td>
+            <td class="px-6 py-4 text-center">
+                ${isEditing ? `<input type="number" id="edit-sale-delivery-${r.id}" value="${r.deliveryFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : deliveryFee.toLocaleString()}
+            </td>
+            <td class="px-6 py-4 text-center">
+                ${isEditing ? `<input type="number" id="edit-sale-bg-${r.id}" value="${r.bgCheckFee || 0}" class="w-20 border-2 border-slate-200 rounded-lg px-2 py-1 text-center font-bold text-slate-700 outline-none focus:border-pink-400">` : bgCheckFee.toLocaleString()}
+            </td>
+            <td class="px-6 py-4 text-sm font-black text-pink-600 text-center">${netTotal.toLocaleString()}</td>
+
+            <td class="px-6 py-4 text-center flex items-center justify-center gap-2">
+                ${isEditing ? `
+                    <button onclick="saveEditSale('${r.id}')" class="w-8 h-8 rounded-full text-white bg-green-500 hover:bg-green-600 transition-all inline-flex items-center justify-center" title="บันทึก">
+                        <i class="fas fa-save text-xs"></i>
+                    </button>
+                    <button onclick="editingRequestId = null; renderTab();" class="w-8 h-8 rounded-full text-white bg-slate-400 hover:bg-slate-500 transition-all inline-flex items-center justify-center" title="ยกเลิก">
+                        <i class="fas fa-times text-xs"></i>
+                    </button>
+                ` : `
+                    <button onclick="editingRequestId = '${r.id}'; renderTab();" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-blue-500 transition-all inline-flex items-center justify-center" title="แก้ไข">
+                        <i class="fas fa-pencil-alt text-xs"></i>
+                    </button>
+                    <button onclick="deleteRequestRecord('${r.id}')" class="w-8 h-8 rounded-full text-slate-400 hover:text-white hover:bg-rose-500 transition-all inline-flex items-center justify-center" title="ลบข้อมูล">
+                        <i class="fas fa-trash-alt text-xs"></i>
+                    </button>
+                `}
+            </td>
+        </tr>
+    `;
+}).join('')}
                         </tbody>
                     </table>
                 </div>
@@ -821,7 +975,7 @@ function renderTab() {
                 </h2>
                 <input type="text" id="search-purchase" placeholder="🔍 ค้นหา ชื่อสินค้า..." class="px-5 py-3 border-2 border-slate-100 rounded-xl outline-none focus:border-pink-400 focus:ring-4 focus:ring-pink-100 font-bold text-slate-700 w-full md:w-80" oninput="filterPurchaseTable()">
             </div>
-            <div class="bg-white rounded-[2rem] shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
+            <div class="bg-white rounded-xl shadow-lg shadow-pink-100/50 border-4 border-pink-50 overflow-hidden">
                 <div class="overflow-x-auto">
                     <table class="w-full text-left border-collapse min-w-max">
                         <thead class="bg-slate-800 text-pink-50 text-xs uppercase tracking-widest font-black">
@@ -882,31 +1036,32 @@ function renderTab() {
 }
 
 function autoFillCost(productName) {
-    // 1. ระบุ ID ของช่อง "ราคาซื้อ/ต้นทุน (บาท)" 
-    // *สำคัญ: เช็คให้แน่ใจว่า ID ใน HTML ของคุณคือ 'buy-cost-input' 
-    // ถ้าตั้งชื่อไว้เป็นอย่างอื่น ให้เปลี่ยนใน '...' ให้ตรงกันครับ
+    // ระบุ ID ที่ถูกต้อง (ตรวจสอบให้มั่นใจว่าใน HTML มี <input id="buy-cost-input">)
     const costInput = document.getElementById('buy-cost-input'); 
     
-    // 2. ค้นหาสินค้าจากสต็อก
+    // --- ตัวแก้ Error: ถ้าหาช่องนี้ไม่เจอ ให้จบฟังก์ชันนี้ทันที ---
+    if (!costInput) {
+        console.warn("ไม่พบช่อง ID 'buy-cost-input' ในหน้าเว็บ - ข้ามการกรอกราคา");
+        return; 
+    }
+    // -----------------------------------------------------
+
     const product = stockData.find(s => s.productName === productName);
 
-    // 3. จัดการแสดงผล
     if (productName === 'อื่นๆ') {
-        // กรณีเลือก "อื่นๆ": ให้ล้างค่าเป็นว่าง และเปิดให้คุณพิมพ์ราคาต้นทุนเองได้
         costInput.value = ''; 
-        costInput.readOnly = false; // ปลดล็อคให้พิมพ์
-        costInput.focus();          // เด้ง cursor ไปที่ช่องนั้นเลย
+        costInput.readOnly = false;
+        costInput.focus();
     } else if (product) {
-        // กรณีเลือกสินค้าปกติ: ดึงราคาต้นทุนจาก DB มาใส่
         costInput.value = product.purchasePrice || 0;
-        costInput.readOnly = true;  // (ถ้าอยากให้แก้ไขไม่ได้) หรือลบบรรทัดนี้ออกถ้าอยากให้แก้ได้ตลอด
+        costInput.readOnly = true;
     }
 }
 
 // ฟังก์ชันลบรายการเคลื่อนไหวในหน้าสรุปผล
 async function deleteMovementRecord(id, type) {
     if (currentUser.role !== 'approver') return;
-    if (!(await KuromiConfirm("คุณแน่ใจหรือไม่ว่าต้องการลบประวัตินี้?\n(หมายเหตุ: การลบเฉพาะประวัติจะไม่ส่งผลกระทบต่อยอดสินค้าคงเหลือปัจจุบัน)"))) return;
+    if (!confirm("คุณแน่ใจหรือไม่ว่าต้องการลบประวัตินี้?\n(หมายเหตุ: การลบเฉพาะประวัติจะไม่ส่งผลกระทบต่อยอดสินค้าคงเหลือปัจจุบัน)")) return;
 
     try {
         if (type === 'out') {
@@ -976,7 +1131,7 @@ window.showMonthlySummaryModal = function() {
                 <label class="font-black text-slate-600 text-sm uppercase tracking-widest flex items-center gap-2"><i class="far fa-calendar-alt text-pink-500"></i> เลือกเดือน:</label>
                 <select id="month-selector" class="px-6 py-3 border-2 border-slate-200 rounded-2xl outline-none font-black text-slate-800 focus:border-pink-400" onchange="renderMonthlyMovementLog()">${monthOptions || '<option value="">ไม่มีข้อมูล</option>'}</select>
             </div>
-            <div id="monthly-data-container" class="flex-1 overflow-y-auto border-4 border-slate-50 rounded-[2rem] bg-white"></div>
+            <div id="monthly-data-container" class="flex-1 overflow-y-auto border-4 border-slate-50 rounded-xl bg-white"></div>
         </div>
     `;
     document.body.appendChild(modal);
@@ -1030,6 +1185,7 @@ async function handleAddNewProduct(e) {
     // 1. ตรวจสอบเงื่อนไขชื่อสินค้า
     let name = nameInput.value;
     const isOther = (name === 'อื่นๆ');
+    const isSecondHand = name.includes('มือสอง');
     if (isOther) {
         name = customInput ? customInput.value : 'สินค้าไม่ระบุชื่อ';
     }
@@ -1037,8 +1193,18 @@ async function handleAddNewProduct(e) {
     // --- แก้ไขตรงนี้: ใส่ || 0 เพื่อกันค่า NaN ---
     const stockToAdd = parseInt(stockInput.value) || 0;
     const price = parseFloat(priceInput.value) || 0;
-    const purchasePrice = isOther ? (parseFloat(purchasePriceInput.value) || 0) : 0;
     let min = parseInt(minInput.value) || 0;
+
+    // คำนวณต้นทุน:
+    let purchasePrice = 0;
+    if (isOther || isSecondHand) {
+        // ถ้าเป็น "มือสอง" หรือ "อื่นๆ" ให้ใช้ค่าที่ผู้ใช้กรอกในช่อง Input
+        purchasePrice = parseFloat(purchasePriceInput.value) || 0;
+    } else {
+        // ถ้าเป็นสินค้าทั่วไป ให้ดึงค่าจากตัวแปร PURCHASE_COSTS
+        // โดยใช้ nameInput.value (ชื่อใน Dropdown) เป็นตัวค้นหา
+        purchasePrice = PURCHASE_COSTS[nameInput.value] || 0;
+    }
     // ----------------------------------------
 
     const addedBy = currentUser.name || 'Admin';
@@ -1052,6 +1218,7 @@ async function handleAddNewProduct(e) {
             await getStockCollection().doc(existingProduct.id).update({
                 currentStock: firebase.firestore.FieldValue.increment(stockToAdd),
                 price: price,
+		purchasePrice: purchasePrice,
                 updatedAt: firebase.firestore.FieldValue.serverTimestamp()
             });
         } else {
@@ -1085,10 +1252,13 @@ async function handleAddNewProduct(e) {
     }
 }
 
+// 1. กำหนด URL ของ Web App ไว้ที่ด้านบนสุดของไฟล์ หรือในที่ที่เข้าถึงได้
+const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbxRn4cKmm1aDKqrWJ9D8gltEMPOPcXrdZL77UZN_akUDyb7WbQ8hPQ2GvLNYfa4MnPe-w/exec'; 
+
 async function handleRequestSubmit(e) {
     e.preventDefault();
     
-    // 1. ประกาศตัวแปรทั้งหมดไว้ที่ด้านบนของฟังก์ชัน
+    // 1. ประกาศตัวแปร
     const productName = document.getElementById('req-product').value;
     const storeId = document.getElementById('req-store').value.trim();
     const branchName = document.getElementById('req-branch').value.trim();
@@ -1098,7 +1268,7 @@ async function handleRequestSubmit(e) {
     const deductInput = document.getElementById('withdraw-deduct-income');
     const deductIncome = deductInput ? (parseFloat(deductInput.value) || 0) : 0;
     
-    // 2. ตรวจสอบเงื่อนไขการบังคับกรอก (ใช้ productName ที่ประกาศไว้ด้านบนแล้ว)
+    // 2. ตรวจสอบเงื่อนไข
     if (productName.includes('กระเป๋า')) {
         if (!storeId || !branchName) {
             await KuromiAlert('กรุณากรอกรหัสร้านและชื่อสาขาสำหรับรายการกระเป๋า');
@@ -1106,7 +1276,6 @@ async function handleRequestSubmit(e) {
         }
     }
 
-    // 3. ทำงานต่อตามปกติ
     const product = stockData.find(s => s.productName === productName);
 
     if (!product || product.currentStock < quantity) {
@@ -1116,13 +1285,14 @@ async function handleRequestSubmit(e) {
     if (!(await KuromiConfirm(`ยืนยันการแจ้งเบิก?\n\nรายการ: ${productName}\nจำนวน: ${quantity}`))) return;
 
     try {
+        // 3. บันทึกลง Firebase
         await getRequestsCollection().add({
             date, 
             productName, 
             productPrice: product ? (product.price || 0) : 0,
             quantity, 
             requesterName, 
-            deductIncome: deductIncome, // บันทึกยอดหัก
+            deductIncome: deductIncome,
             riderName: document.getElementById('req-rider').value,
             storeId: storeId,
             branchName: branchName,
@@ -1130,6 +1300,29 @@ async function handleRequestSubmit(e) {
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         
+        // --- ส่วนที่เพิ่ม: ส่ง LINE ทันทีที่บันทึกสำเร็จ ---
+        try {
+            await fetch(WEB_APP_URL, {
+                method: 'POST',
+                mode: 'no-cors', // สำคัญมาก เพื่อป้องกันปัญหา CORS
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    productName: productName,
+                    quantity: quantity,
+                    requesterName: requesterName,
+                    riderName: document.getElementById('req-rider').value,
+                    storeId: storeId,
+                    branchName: branchName,
+                    deductIncome: deductIncome
+                })
+            });
+            console.log("ส่งแจ้งเตือน LINE แล้ว");
+        } catch (lineErr) {
+            // ใส่ try-catch ครอบเพื่อไม่ให้ระบบหลักพังถ้า LINE ส่งไม่สำเร็จ
+            console.error("ส่ง LINE ไม่สำเร็จ:", lineErr);
+        }
+        // ------------------------------------------
+
         await KuromiAlert('ส่งคำขอเบิกแล้ว');
 
         // ล้างค่าฟอร์ม
@@ -1176,15 +1369,32 @@ async function updateRequestField(reqId, field, value) {
 
 function toggleCustomProductInput() {
     const select = document.getElementById('new-prod-name');
-    const customInput = document.getElementById('new-prod-custom');
-    const purchasePriceContainer = document.getElementById('purchase-price-container');
+    if (!select) return; // ป้องกัน error ถ้าหา select ไม่เจอ
+    
+    const value = select.value;
 
-    if (select.value === 'อื่นๆ') {
-        customInput.classList.remove('hidden');
-        purchasePriceContainer.classList.remove('hidden');
-    } else {
-        customInput.classList.add('hidden');
-        purchasePriceContainer.classList.add('hidden');
+    // แก้ไข ID ให้ตรงกับ HTML จริงๆ
+    const customInput = document.getElementById('new-prod-custom'); // เปลี่ยนจาก custom-name-container เป็น ID นี้
+    const costContainer = document.getElementById('purchase-price-container');
+
+    // 1. จัดการช่อง "ระบุชื่อสินค้า" (แสดงเฉพาะเมื่อเลือก "อื่นๆ")
+    if (customInput) {
+        if (value === 'อื่นๆ') {
+            customInput.classList.remove('hidden');
+            customInput.setAttribute('required', 'true'); // เพิ่ม required เมื่อแสดง
+        } else {
+            customInput.classList.add('hidden');
+            customInput.removeAttribute('required'); // เอา required ออกเมื่อซ่อน
+        }
+    }
+
+    // 2. จัดการช่อง "ราคาซื้อ (ต้นทุน)" (แสดงเมื่อเลือก "มือสอง" หรือ "อื่นๆ")
+    if (costContainer) {
+        if (value.includes('มือสอง') || value === 'อื่นๆ') {
+            costContainer.classList.remove('hidden');
+        } else {
+            costContainer.classList.add('hidden');
+        }
     }
 }
 
@@ -1232,7 +1442,7 @@ function filterStatusTable() {
     });
 }
 
-function getStatusClass(status) { return status === 'approved' ? 'bg-pink-500 text-white border-none' : status === 'rejected' ? 'bg-slate-800 text-white border-none' : 'bg-white text-slate-600 border-2 border-slate-200'; }
+function getStatusClass(status) { return status === 'approved' ? 'bg-blue-600 text-white border-none' : status === 'rejected' ? 'bg-slate-800 text-white border-none' : 'bg-white text-slate-600 border-2 border-slate-200'; }
 function getStatusLabel(status) { return status === 'approved' ? 'อนุมัติแล้ว' : status === 'rejected' ? 'ปฏิเสธ' : 'รออนุมัติ'; }
 
 // ฟังก์ชันสำหรับการค้นหาในตาราง
@@ -1319,13 +1529,13 @@ async function approveRequest(reqId, newStatus) {
 
         if (!reqData) return;
 
-        // คำนวณยอดสุทธิ (ราคาสินค้า * จำนวน) - ยอดหัก
+        // คำนวณยอดสุทธิ
         const pricePerUnit = reqData.productPrice || 0;
         const totalAmount = pricePerUnit * reqData.quantity;
         const deductAmount = reqData.deductIncome || 0;
         const netTotal = totalAmount - deductAmount;
 
-        // ตรวจสอบสต็อก (ส่วนเดิม)
+        // ตรวจสอบสต็อก
         if (reqData.status === 'approved' && newStatus !== 'approved') {
             const product = stockData.find(s => s.productName === reqData.productName);
             if (product) {
@@ -1348,12 +1558,12 @@ async function approveRequest(reqId, newStatus) {
             });
         }
 
-        // อัปเดตสถานะและบันทึกยอดสุทธิที่คำนวณได้
+        // อัปเดตสถานะและบันทึกยอดสุทธิ
         await reqRef.update({
             status: newStatus,
             approvedBy: currentUser.name,
             approvedAt: firebase.firestore.FieldValue.serverTimestamp(),
-            netTotal: netTotal // บันทึกยอดที่หักลบแล้ว
+            netTotal: netTotal
         });
 
         await KuromiAlert(`ดำเนินการ ${label} เรียบร้อยแล้ว`);
